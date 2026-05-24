@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "854366573421",
+    "project_id": "tahina-2abc2",
+    "storage_bucket": "tahina-2abc2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:854366573421:android:5ad63db57ff3f171114064",
+        "android_client_info": {
+          "package_name": "com.snabel.altahina.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYMfzaHgulAwlQX2NCfYa6yHvrcoB66Ts"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:854366573421:android:f33114af044e0b68114064",
+        "android_client_info": {
+          "package_name": "com.snabel.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYMfzaHgulAwlQX2NCfYa6yHvrcoB66Ts"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
