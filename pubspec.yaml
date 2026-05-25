@@ -80,6 +80,10 @@ dependencies:
   package_info_plus: ^9.0.1
   webview_flutter: ^4.13.1
 
+  # === Dependencies merged from driver app ===
+  cached_network_image: ^3.4.1
+  bouncing_widget: ^2.0.0
+
 flutter_launcher_icons:
   android: true
   ios: true
@@ -110,6 +114,7 @@ flutter:
     - assets/
     - assets/images/
     - assets/icon/
+    - assets/icon/driver/
     - assets/lottie/
 
   fonts:

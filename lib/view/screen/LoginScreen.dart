@@ -41,7 +41,13 @@ class LoginScreen extends StatelessWidget {
               key: controller.formstate.value,
               child: ListView(
                 children: [
-                  SizedBox(height: 40),
+                  SizedBox(height: 16),
+                  // ⬅ سهم الرجوع لصفحة اختيار الدور
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _BackToRoleSelect(),
+                  ),
+                  SizedBox(height: 8),
                   InkWell(
                     onLongPress: () => setServer(context),
                     child: Image.asset(
@@ -50,7 +56,7 @@ class LoginScreen extends StatelessWidget {
                       height: 150,
                     ),
                   ),
-                  SizedBox(height: 40),
+                  SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
@@ -168,6 +174,40 @@ class LoginScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// زر رجوع صغير في أعلى شاشة الدخول — يعيد المستخدم لصفحة اختيار الدور `/`.
+class _BackToRoleSelect extends StatelessWidget {
+  const _BackToRoleSelect();
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => Get.offAllNamed('/'),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xffF3F2F1)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          color: Color(0xff231F1E),
+          size: 16,
+        ),
       ),
     );
   }

@@ -20,16 +20,26 @@ import 'package:customer/view/screen/PinnedOrderEditScreen.dart';
 import 'package:customer/view/screen/PinnedOrdersScreen.dart';
 import 'package:customer/view/screen/ContactUsScreen.dart';
 import 'package:customer/view/screen/PrivacyPolicyScreen.dart';
+import 'package:customer/view/screen/RoleSelectScreen.dart';
+import 'package:customer/driver/core/constant/routes.dart' as driver_routes;
 import 'package:get/get.dart';
 
 List<GetPage<dynamic>>? routes = [
+  ...driver_routes.driverRoutes,
+  // 🚪 صفحة البداية — اختيار الدور (تاجر/سائق). نقطة الدخول الافتراضية بعد Splash.
   GetPage(
     name: '/',
+    page: () => const RoleSelectScreen(),
+    transition: Transition.fadeIn,
+    transitionDuration: const Duration(milliseconds: 400),
+  ),
+  // 🏪 تسجيل دخول الزبون — يُفتح من بطاقة "تاجر".
+  GetPage(
+    name: '/Login',
     page: () => LoginScreen(),
     binding: LoginBinding(),
-
-    transition: Transition.fade,
-    transitionDuration: const Duration(milliseconds: 500),
+    transition: Transition.rightToLeft,
+    transitionDuration: const Duration(milliseconds: 400),
   ),
   GetPage(
     name: '/ForgotPassword',
