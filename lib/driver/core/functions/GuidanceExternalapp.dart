@@ -1,3 +1,4 @@
+import 'package:customer/core/functions/store_location_parser.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 double normalizeCoord(dynamic v) {
@@ -9,27 +10,14 @@ double normalizeCoord(dynamic v) {
   return n;
 }
 
-
-Map<String, double> parseGoogleMapsDestination(String url) {
-  try {
-    final uri = Uri.parse(url);
-
-    // نقرأ بارامتر destination
-    final dest = uri.queryParameters['destination'];
-    if (dest == null || dest.trim().isEmpty) return {};
-
-    // destination يكون: "lat,lng"
-    final parts = dest.split(',');
-    if (parts.length != 2) return {};
-
-    final lat = double.tryParse(parts[0].trim());
-    final lng = double.tryParse(parts[1].trim());
-    if (lat == null || lng == null) return {};
-
-    return {'lat': lat, 'lng': lng};
-  } catch (_) {
-    return {};
-  }
+/// تحليل أي صيغة `storeLocation` (URL Google Maps أو "lat,lng" أو Geo URI …)
+/// وإعادة Map بصيغة `{'lat': .., 'lng': ..}` المطلوبة في [openInMapsFromData].
+///
+/// يستخدم [parseStoreLocation] الموحَّد ليطابق سلوك تطبيق الأدمن.
+Map<String, double> parseGoogleMapsDestination(String input) {
+  final latLng = parseStoreLocation(input);
+  if (latLng == null) return {};
+  return {'lat': latLng.latitude, 'lng': latLng.longitude};
 }
 
 Future<void> openInMapsFromData(Map location) async {

@@ -9,11 +9,13 @@ import 'package:get/get.dart';
 
 class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   @override
-  Size get preferredSize => Size.fromHeight(80);
+  Size get preferredSize =>
+      Size.fromHeight(80 + (bottom?.preferredSize.height ?? 0));
   final bool? isSub;
   final bool? hideNotifications;
   final String? namePage;
   final Widget? iconPage;
+  final PreferredSizeWidget? bottom;
 
   AppBarWidget({
     super.key,
@@ -21,6 +23,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     this.hideNotifications = false,
     this.iconPage,
     this.namePage = "",
+    this.bottom,
   });
 
   final MainControlIer mainController = Get.find<MainControlIer>();
@@ -33,6 +36,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
       elevation: 4,
       toolbarHeight: 80,
       backgroundColor: Colors.white,
+      bottom: bottom,
       title: isSub!
           ? Row(
               mainAxisSize: MainAxisSize.min,

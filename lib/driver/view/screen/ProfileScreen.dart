@@ -181,9 +181,8 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = imagePath != null &&
-        imagePath!.isNotEmpty &&
-        imagePath != 'null';
+    final hasImage =
+        imagePath != null && imagePath!.isNotEmpty && imagePath != 'null';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
@@ -192,14 +191,11 @@ class _HeroCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
-          colors: [
-            ProfileScreen._kDarkBrown,
-            ProfileScreen._kDark,
-          ],
+          colors: [ProfileScreen._kDarkBrown, ProfileScreen._kDark],
         ),
         boxShadow: [
           BoxShadow(
-            color: ProfileScreen._kDarkBrown.withValues(alpha: 0.25),
+            color: ProfileScreen._kDarkBrown.withOpacity(0.25),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -207,45 +203,47 @@ class _HeroCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // الصورة الدائرية — DecorationImage مع shape: circle يضمن قصّ الصورة لشكل دائري
+          // 🟧 الأفتار الدائري (المُعدل لقص الصورة هندسياً بشكل دائري)
           Container(
             width: 78,
             height: 78,
-            padding: const EdgeInsets.all(3),
+            padding: const EdgeInsets.all(3), // سُمك الإطار البرتقالي خارجي
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: ProfileScreen._kOrange.withValues(alpha: 0.65),
-                width: 2,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  ProfileScreen._kOrange,
+                  ProfileScreen._kOrange.withOpacity(0.55),
+                ],
               ),
             ),
             child: Container(
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.15),
+                shape: BoxShape.circle, // إجبار المحتوى الداخلي على شكل دائرة
+                color: ProfileScreen._kDarkBrown,
                 image: hasImage
                     ? DecorationImage(
                         image: NetworkImage(
                           DriverApplink.serverImage + imagePath!,
                         ),
-                        fit: BoxFit.cover,
-                        onError: (_, __) {},
+                        fit: BoxFit
+                            .cover, // قص حواف الصورة لتطابق الدائرة تماماً
                       )
                     : null,
               ),
-              child: hasImage
-                  ? null
-                  : const Center(
-                      child: Icon(
-                        Icons.person_rounded,
-                        color: Colors.white,
-                        size: 38,
-                      ),
-                    ),
+              child: !hasImage
+                  ? const Icon(
+                      Icons.person_rounded,
+                      color: Colors.white,
+                      size: 38,
+                    )
+                  : null,
             ),
           ),
+
           const SizedBox(width: 14),
-          // الاسم والهاتف والشارة
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,10 +252,10 @@ class _HeroCard extends StatelessWidget {
                   name.isEmpty ? '—' : name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
-                    fontWeight: MyFontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -266,9 +264,9 @@ class _HeroCard extends StatelessWidget {
                   child: Text(
                     phone.isEmpty ? '—' : phone,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.75),
+                      color: Colors.white.withOpacity(0.75),
                       fontSize: 13,
-                      fontWeight: MyFontWeight.regular,
+                      fontWeight: FontWeight.normal,
                     ),
                   ),
                 ),
@@ -282,21 +280,21 @@ class _HeroCard extends StatelessWidget {
                     color: ProfileScreen._kOrange,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.pedal_bike_rounded,
                         color: Colors.white,
                         size: 14,
                       ),
-                      const SizedBox(width: 5),
+                      SizedBox(width: 5),
                       Text(
                         'سائق',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 11.5,
-                          fontWeight: MyFontWeight.semiBold,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -357,7 +355,7 @@ class _Card extends StatelessWidget {
         border: Border.all(color: ProfileScreen._kBorder, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -402,7 +400,7 @@ class _InfoRow extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: ProfileScreen._kOrange.withValues(alpha: 0.12),
+              color: ProfileScreen._kOrange.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: ProfileScreen._kOrange, size: 18),
@@ -416,21 +414,23 @@ class _InfoRow extends StatelessWidget {
               color: ProfileScreen._kMuted,
             ),
           ),
-          const Spacer(),
-          Flexible(
-            child: Directionality(
-              textDirection: valueLtr
-                  ? TextDirection.ltr
-                  : Directionality.of(context),
-              child: Text(
-                value,
-                textAlign: TextAlign.end,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: MyFontWeight.semiBold,
-                  color: ProfileScreen._kDark,
+          // Expanded + AlignmentDirectional.centerEnd يدفع القيمة لأقصى اليسار في RTL
+          Expanded(
+            child: Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: Directionality(
+                textDirection: valueLtr
+                    ? TextDirection.ltr
+                    : Directionality.of(context),
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: MyFontWeight.semiBold,
+                    color: ProfileScreen._kDark,
+                  ),
                 ),
               ),
             ),
@@ -468,7 +468,7 @@ class _MenuTile extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: iconBg.withValues(alpha: 0.14),
+                  color: iconBg.withOpacity(0.14),
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Icon(icon, color: iconBg, size: 20),
@@ -484,11 +484,7 @@ class _MenuTile extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(
-                Icons.chevron_right,
-                color: ProfileScreen._kMuted,
-                size: 22,
-              ),
+              Icon(Icons.chevron_right, color: ProfileScreen._kMuted, size: 22),
             ],
           ),
         ),
@@ -504,7 +500,7 @@ class _LogoutButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: ProfileScreen._kDanger.withValues(alpha: 0.08),
+      color: ProfileScreen._kDanger.withOpacity(0.08),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -514,7 +510,7 @@ class _LogoutButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: ProfileScreen._kDanger.withValues(alpha: 0.25),
+              color: ProfileScreen._kDanger.withOpacity(0.25),
               width: 1,
             ),
           ),

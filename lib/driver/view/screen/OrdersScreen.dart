@@ -206,7 +206,6 @@ class OrdersScreen extends StatelessWidget {
                           ),
                         )
                       : SizedBox(height: 3),
-                  SizedBox(height: 80),
                 ],
               )
             : Column(

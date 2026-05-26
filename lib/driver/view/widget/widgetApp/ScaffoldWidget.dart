@@ -48,6 +48,17 @@ class ScaffoldWidget extends StatelessWidget {
   final PreferredSizeWidget? appBarWidget;
   @override
   Widget build(BuildContext context) {
+    // إن وُجد heder ونستخدم الـAppBar الافتراضي، ندمج heder داخل الـAppBar
+    // (في الـbottom) لإلغاء الفجوة بين الـAppBar والتابات.
+    final bool placeHederInAppBar =
+        heder != null && appBarWidget == null && appBar;
+    final PreferredSizeWidget? appBarBottom = placeHederInAppBar
+        ? PreferredSize(
+            preferredSize: const Size.fromHeight(50),
+            child: heder!,
+          )
+        : null;
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar:
@@ -57,6 +68,7 @@ class ScaffoldWidget extends StatelessWidget {
               hideNotifications: hideNotifications,
               namePage: namePage,
               iconPage: iconPage,
+              bottom: appBarBottom,
             )
           : null),
 
@@ -74,7 +86,8 @@ class ScaffoldWidget extends StatelessWidget {
             ),
             child: Column(
               children: [
-                ?heder,
+                // heder يظهر هنا فقط إذا لم يكن مدموجاً في الـAppBar
+                if (!placeHederInAppBar && heder != null) heder!,
                 Expanded(
                   child: Obx(
                     () =>
