@@ -90,6 +90,7 @@ class LoginController extends GetxController {
       response["customer"]["phone"],
     );
     myServices.sharedPreferences.setString("router", "/MainScreen");
+    myServices.sharedPreferences.setString("userRole", "customer");
 
     final FirebaseMessaging messaging = FirebaseMessaging.instance;
     String? token = await messaging.getToken();

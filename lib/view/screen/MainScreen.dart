@@ -8,8 +8,30 @@ import 'package:customer/view/screen/WalletScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class MainScreen extends GetView<MainController> {
+class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  late final List<Widget> _pages;
+  late final MainController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<MainController>();
+    // الصفحات تُبنى مرة واحدة فقط — IndexedStack يُبقي حالتها بدون إعادة تحميل عند التبديل.
+    _pages = [
+      HomeScreen(),
+      CartScreen(),
+      WalletScreen(),
+      OrdersScreen(),
+      ProfileScreen(),
+    ];
+  }
 
   Widget _walletCenterButton() {
     return Container(
@@ -65,14 +87,6 @@ class MainScreen extends GetView<MainController> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      HomeScreen(),
-      CartScreen(),
-      WalletScreen(),
-      OrdersScreen(),
-      ProfileScreen(),
-    ];
-
     final bottomBarHeight = 96.0;
     final systemBottom = MediaQuery.of(context).padding.bottom;
     final contentBottomPadding = bottomBarHeight + systemBottom;
@@ -83,7 +97,13 @@ class MainScreen extends GetView<MainController> {
         children: [
           Padding(
             padding: EdgeInsets.only(bottom: contentBottomPadding),
-            child: Obx(() => pages[controller.currentIndex.value]),
+            child: Obx(
+              () => IndexedStack(
+                index: controller.currentIndex.value,
+                sizing: StackFit.expand,
+                children: _pages,
+              ),
+            ),
           ),
           SafeArea(
             top: false,
