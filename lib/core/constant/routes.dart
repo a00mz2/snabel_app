@@ -20,6 +20,7 @@ import 'package:customer/view/screen/PinnedOrderEditScreen.dart';
 import 'package:customer/view/screen/PinnedOrdersScreen.dart';
 import 'package:customer/view/screen/ContactUsScreen.dart';
 import 'package:customer/view/screen/PrivacyPolicyScreen.dart';
+import 'package:customer/view/screen/ForceUpdateScreen.dart';
 import 'package:customer/view/screen/RoleSelectScreen.dart';
 import 'package:customer/driver/core/constant/routes.dart' as driver_routes;
 import 'package:get/get.dart';
@@ -132,6 +133,12 @@ List<GetPage<dynamic>>? routes = [
   GetPage(
     name: '/PrivacyPolicy',
     page: () => const PrivacyPolicyScreen(),
+  ),
+  // 🔄 شاشة التحديث الإجباري — تُعرض عند اكتشاف إصدار غير مسموح به
+  GetPage(
+    name: ForceUpdateScreen.routeName,
+    page: () => const ForceUpdateScreen(),
+    transition: Transition.fadeIn,
   ),
 ];
 

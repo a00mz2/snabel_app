@@ -4,7 +4,9 @@ import 'package:customer/driver/controller/ProfileController.dart';
 import 'package:customer/driver/core/constant/Themes/lightThem.dart';
 import 'package:customer/driver/core/services/services.dart';
 import 'package:customer/driver/linkApi.dart';
+import 'package:customer/driver/model/LoginModel.dart' as driver_login_model;
 import 'package:customer/driver/view/widget/widgetApp/ScaffoldWidget.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -115,12 +117,26 @@ class ProfileScreen extends StatelessWidget {
   // العمليات
   // ──────────────────────────────────────────────────────────
 
-  void _handleLogout() {
-    myServices.sharedPreferences.remove("id");
-    myServices.sharedPreferences.remove("Token");
-    myServices.sharedPreferences.remove("refreshToken");
-    myServices.sharedPreferences.remove("router");
-    myServices.sharedPreferences.remove("userRole");
+  /// تسجيل الخروج — نحاول حذف FCM token من الـAPI أولاً (لمنع وصول إشعارات
+  /// السائق لزبون لاحقاً على نفس الجهاز)، لكن لا نحبس المستخدم لو فشل الطلب.
+  Future<void> _handleLogout() async {
+    final fcmToken = await FirebaseMessaging.instance.getToken().catchError(
+      (_) => null,
+    );
+    if (fcmToken != null && fcmToken.isNotEmpty) {
+      try {
+        await driver_login_model.LoginModel(Get.find()).removeDriverToken(fcmToken);
+      } catch (_) {
+        // تجاهل الفشل — نُكمل تسجيل الخروج محلياً.
+      }
+    }
+
+    await myServices.sharedPreferences.remove("id");
+    await myServices.sharedPreferences.remove("Token");
+    await myServices.sharedPreferences.remove("refreshToken");
+    await myServices.sharedPreferences.remove("router");
+    await myServices.sharedPreferences.remove("userRole");
+    await myServices.sharedPreferences.remove("tokinFCM");
     Get.offAllNamed("/");
   }
 

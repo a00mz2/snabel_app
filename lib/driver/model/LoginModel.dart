@@ -28,4 +28,14 @@ class LoginModel {
     );
     return response.fold((failure) => failure, (data) => data);
   }
+
+  /// حذف توكن FCM للجهاز الحالي عند تسجيل الخروج.
+  Future<dynamic> removeDriverToken(String deviceToken) async {
+    var response = await crud.request(
+      method: "POST",
+      url: DriverApplink.removeDriverToken,
+      data: {"deviceToken": deviceToken},
+    );
+    return response.fold((failure) => failure, (data) => data);
+  }
 }

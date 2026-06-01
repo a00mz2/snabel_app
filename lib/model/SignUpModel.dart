@@ -11,10 +11,12 @@ class SignUpModel {
   SignUpModel(this.crud);
 
   Future<dynamic> createOtp(String phone) async {
-    var response = await crud.postData(Applink.createOtp, isRetry: true, {
-      "phone": phone,
-      "action": "register",
-    });
+    var response = await crud.postData(
+      Applink.createOtp,
+      {"phone": phone, "action": "register"},
+      isRetry: false,
+      isPublicRoutes: true,
+    );
     return response.fold((failure) => failure, (data) => data);
   }
 
@@ -34,9 +36,9 @@ class SignUpModel {
     print("=======================");
     print(type);
     print("=======================");
+    // مسار عام — لا يتطلب توكن، ولا داعي للـ retry بعد 401
     var response = await crud.postDataWithFiles(
       Applink.createCustomer,
-      isRetry: true,
       {
         "customerName": customerName,
         "StoreName": storeName,
@@ -50,6 +52,8 @@ class SignUpModel {
         "secondaryPhone": secondaryPhone,
       },
       {"document": ?document},
+      isRetry: false,
+      isPublicRoutes: true,
     );
     return response.fold((failure) => failure, (data) => data);
   }

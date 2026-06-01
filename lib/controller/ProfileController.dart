@@ -113,26 +113,32 @@ class ProfileController extends GetxController {
     statusCode.value = handlingStatusCode(response);
   }
 
+  /// تسجيل الخروج — نحاول حذف FCM token من الـAPI أولاً، لكن
+  /// لا نمنع المستخدم من الخروج لو فشل الطلب (مثلاً انتهاء التوكن أو الشبكة).
   logOut() async {
     statusRequest.value = StatusRequest.loading;
 
-    var response = await loginModel.removeToken(
-      myServices.sharedPreferences.getString("tokinFCM").toString(),
-    );
-
-    if (handlingData(response) == StatusRequest.success) {
-      myServices.sharedPreferences.remove("id");
-      myServices.sharedPreferences.remove("Token");
-      myServices.sharedPreferences.remove("refreshToken");
-      myServices.sharedPreferences.remove("router");
-      Get.offAllNamed("/");
-      AppSnackBar.success("تم تسجيل الخروج");
-    } else {
-      AppSnackBar.error("فشل تسجيل الخروج");
+    final fcmToken = myServices.sharedPreferences.getString("tokinFCM");
+    if (fcmToken != null && fcmToken.isNotEmpty) {
+      try {
+        await loginModel.removeToken(fcmToken);
+      } catch (_) {
+        // تجاهل الفشل — نُكمل تسجيل الخروج محلياً.
+      }
     }
 
-    // statusRequest.value = handlingData(response);
-    // statusCode.value = handlingStatusCode(response);
+    // مسح كامل لضمان عدم بقاء أيّ بيانات جلسة قديمة.
+    await myServices.sharedPreferences.remove("id");
+    await myServices.sharedPreferences.remove("Token");
+    await myServices.sharedPreferences.remove("refreshToken");
+    await myServices.sharedPreferences.remove("router");
+    await myServices.sharedPreferences.remove("userRole");
+    await myServices.sharedPreferences.remove("tokinFCM");
+    await myServices.sharedPreferences.remove("PASSWORD");
+
+    statusRequest.value = StatusRequest.success;
+    Get.offAllNamed("/");
+    AppSnackBar.success("تم تسجيل الخروج");
   }
 
   //====================Api====================

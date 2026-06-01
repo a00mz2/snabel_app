@@ -97,7 +97,7 @@ class SignUpScreen extends StatelessWidget {
                     controller: controller.phoneController,
                     typeVal: "phone",
                     maxLength: 11,
-                    maxLines: 11,
+                    maxLines: 1,
                     type: TextInputType.number,
                     suffixIcon: Text("+964"),
                     prefixIcon: Container(
