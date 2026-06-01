@@ -142,4 +142,14 @@ class Applink {
 
   /// الخصوصية والشروط (صفحة HTML على نفس نطاق الـ API)
   static String get privacyPolicyUrl => '$hostNoSlash/privacy-terms.html';
+
+  /// إعدادات التطبيق العامة — مسار عام بدون توكن
+  /// يدعم query param: ?appVersion=X.Y.Z للتحقق من الإصدار
+  static String getAppConfig({String? appVersion}) {
+    final base = "${customerServer}getAppConfig";
+    if (appVersion != null && appVersion.isNotEmpty) {
+      return "$base?appVersion=$appVersion";
+    }
+    return base;
+  }
 }

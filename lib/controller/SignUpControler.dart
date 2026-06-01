@@ -122,37 +122,94 @@ class SignUpControler extends GetxController {
     }
   }
 
+  // ─── التحقق من صحة البيانات قبل إرسال OTP ───────────────────────────────
   verification() async {
-    if (formstate.value.currentState!.validate()) {
-      if (customerType.isEmpty) {
-        Get.snackbar("خطأ", "يرجى اختيار نوع المتجر");
-      } else if (locationController.text.toString().isEmpty) {
-        Get.snackbar("خطأ", "يرجى اختيار الموقع");
-      } else if (imageElmint.value == null) {
-        Get.snackbar("خطأ", "يرجى إرفاق صورة الهوية");
-      } else if (province.isEmpty) {
-        Get.snackbar("خطأ", "يرجى اختيار المحافظة");
-      } else if (passwordController.text != rEpasswordController.text) {
-        Get.snackbar("خطأ", "كلمة المرور غير متطابقة");
-      } else {
-        buttonStatusRequest.value = StatusRequest.loading;
-        var response = await model.createOtp(phoneController.text);
+    // تفعيل التحقق البصري (تلوين الحقول الفارغة بالأحمر)
+    formstate.value.currentState?.validate();
 
-        if (handlingData(response) == StatusRequest.success) {
-          AppSnackBar.success(response['message'] ?? "");
-          Get.toNamed("/Otp");
-          startTimer();
-        } else {
-          try {
-            AppSnackBar.error(response['message'] ?? "هناك خطأ ما");
-          } catch (e) {
-            AppSnackBar.error("هناك خطأ ما");
-          }
-        }
+    // 1. أسماء الحقول النصية مع رسائلها الواضحة
+    final textFields = [
+      {
+        "controller": customerNameController,
+        "msg": "يرجى إدخال اسم صاحب المتجر",
+      },
+      {"controller": storeNameController, "msg": "يرجى إدخال اسم المتجر"},
+      {"controller": phoneController, "msg": "يرجى إدخال رقم الهاتف"},
+      {"controller": addressController, "msg": "يرجى إدخال عنوان المتجر"},
+      {"controller": passwordController, "msg": "يرجى إدخال كلمة المرور"},
+      {
+        "controller": rEpasswordController,
+        "msg": "يرجى تأكيد كلمة المرور",
+      },
+    ];
 
-        buttonStatusRequest.value = StatusRequest.success;
+    // 2. التحقق من كل حقل نصي بالاسم
+    for (final field in textFields) {
+      final ctrl = field["controller"] as TextEditingController;
+      if (ctrl.text.trim().isEmpty) {
+        AppSnackBar.error(field["msg"] as String);
+        return;
       }
     }
+
+    // 3. التحقق من صحة رقم الهاتف (صيغة عراقية)
+    final phone = phoneController.text.trim();
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    final validPhone =
+        RegExp(r'^9647\d{9}$').hasMatch(digits) ||
+        RegExp(r'^07\d{9}$').hasMatch(digits);
+    if (!validPhone) {
+      AppSnackBar.error("رقم الهاتف غير صالح — أدخل: 07xxxxxxxxx");
+      return;
+    }
+
+    // 4. التحقق من المحافظة
+    if (province.isEmpty) {
+      AppSnackBar.error("يرجى اختيار المحافظة");
+      return;
+    }
+
+    // 5. التحقق من الموقع الجغرافي
+    if (locationController.text.trim().isEmpty) {
+      AppSnackBar.error("يرجى تحديد موقع المتجر على الخريطة");
+      return;
+    }
+
+    // 6. التحقق من نوع المتجر
+    if (customerType.isEmpty) {
+      AppSnackBar.error("يرجى اختيار نوع المتجر");
+      return;
+    }
+
+    // 7. التحقق من صورة / وثيقة الاعتماد
+    if (imageElmint.value == null) {
+      AppSnackBar.error("يرجى إرفاق وثيقة الاعتماد (صورة الهوية)");
+      return;
+    }
+
+    // 8. التحقق من تطابق كلمتَي المرور
+    if (passwordController.text != rEpasswordController.text) {
+      AppSnackBar.error("كلمة المرور وتأكيدها غير متطابقتين");
+      return;
+    }
+
+    // 9. كل التحقق نجح — إرسال OTP
+    buttonStatusRequest.value = StatusRequest.loading;
+    var response = await model.createOtp(phoneController.text);
+
+    if (handlingData(response) == StatusRequest.success) {
+      AppSnackBar.success(response['message'] ?? "تم إرسال رمز التحقق");
+      Get.toNamed("/Otp");
+      startTimer();
+    } else {
+      try {
+        AppSnackBar.error(response['message'] ?? "هناك خطأ ما");
+      } catch (_) {
+        AppSnackBar.error("هناك خطأ ما، يرجى المحاولة مجدداً");
+      }
+    }
+
+    buttonStatusRequest.value = StatusRequest.success;
   }
 
   //=========================otp=========================
@@ -235,6 +292,8 @@ class SignUpControler extends GetxController {
       await saveDataLogin(response);
       Get.offAllNamed("/MainScreen");
     } else {
+      // إعادة الحالة لـ success حتى لا تبقى شاشة OTP مجمّدة
+      statusRequest.value = StatusRequest.success;
       AppSnackBar.error(tryResponseMessage(response) ?? "");
     }
   }

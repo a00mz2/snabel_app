@@ -20,6 +20,8 @@ class DriverApplink {
   static const String login = "$apiV1Prefix/driver/LogInDriver";
   static const String getDriverProfile = "$apiV1Prefix/driver/getDriverProfile";
   static const String addDriverToken = "$apiV1Prefix/driver/addDriverToken";
+  static const String removeDriverToken =
+      "$apiV1Prefix/driver/removeDriverToken";
   static const String updateStatusOrder = "$apiV1Prefix/driver/updateStatusOrder";
   static const String driverRefreshToken = "$apiV1Prefix/driver/DriverRefreshToken";
 
