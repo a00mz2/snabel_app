@@ -56,6 +56,68 @@ class OtpScreen extends StatelessWidget {
                           textAlign: TextAlign.right,
                         ),
                       ),
+
+                      // 👇 زر الاشتراك بخدمة واتساب — يظهر فقط عندما يكون الرقم
+                      // غير مشترك بعد (pending): الرمز محجوز وسيصل فور إرسال
+                      // كلمة الاشتراك إلى رقم الخدمة.
+                      Obx(
+                        () => controller.otpOptIn.value.showOptInButton
+                            ? Container(
+                                margin: const EdgeInsets.only(top: 20),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE9F9EF),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFF25D366),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      controller
+                                          .otpOptIn.value.displayInstruction,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Color(0xFF4A2E1F),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 46,
+                                      child: ElevatedButton.icon(
+                                        onPressed:
+                                            controller.openWhatsAppForCode,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              const Color(0xFF25D366),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(30),
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.chat,
+                                          color: Colors.white,
+                                        ),
+                                        label: const Text(
+                                          "اضغط للحصول على الكود",
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+
                       const SizedBox(height: 40),
 
                       // 👇 OTP Field

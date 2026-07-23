@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:customer/core/class/otp_opt_in.dart';
 import 'package:otp_text_field/otp_field.dart';
 
 class SignUpControler extends GetxController {
@@ -198,6 +199,9 @@ class SignUpControler extends GetxController {
     var response = await model.createOtp(phoneController.text);
 
     if (handlingData(response) == StatusRequest.success) {
+      // التقاط بيانات الاشتراك (opt-in) — إن كان الرقم غير مشترك بعد،
+      // تعرض شاشة OTP زر «اضغط للحصول على الكود» الذي يفتح واتساب.
+      otpOptIn.value = OtpOptInInfo.fromResponse(response);
       AppSnackBar.success(response['message'] ?? "تم إرسال رمز التحقق");
       Get.toNamed("/Otp");
       startTimer();
@@ -218,6 +222,17 @@ class SignUpControler extends GetxController {
   Timer? timer;
   var otpCode = ''.obs;
   final OtpFieldController otpFieldController = OtpFieldController();
+
+  /// بيانات الاشتراك بخدمة واتساب (opt-in) — من استجابة طلب الرمز.
+  final Rx<OtpOptInInfo> otpOptIn = Rx<OtpOptInInfo>(const OtpOptInInfo());
+
+  /// يفتح واتساب على رقم الخدمة مع كلمة الاشتراك معبأة — لاستلام الرمز.
+  Future<void> openWhatsAppForCode() async {
+    final ok = await otpOptIn.value.openWhatsApp();
+    if (!ok) {
+      AppSnackBar.error("تعذر فتح واتساب، تأكد من تثبيته على جهازك");
+    }
+  }
   void startTimer() {
     secondsRemaining.value = 30;
     enableResend.value = false;
@@ -235,7 +250,10 @@ class SignUpControler extends GetxController {
 
   void resendCode() async {
     if (enableResend.value) {
-      model.createOtp(phoneController.text);
+      final response = await model.createOtp(phoneController.text);
+      if (handlingData(response) == StatusRequest.success) {
+        otpOptIn.value = OtpOptInInfo.fromResponse(response);
+      }
       startTimer();
       clearOtpField();
       Get.snackbar("إعادة الإرسال", "تم إرسال الكود مجددًا ✅");

@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:customer/core/class/otp_opt_in.dart';
 import 'package:customer/core/class/statusRequest.dart';
 import 'package:customer/core/functions/handlingData.dart';
 import 'package:customer/core/functions/response_map.dart';
@@ -33,9 +34,20 @@ class ForgotPasswordController extends GetxController {
 
   final RxString otpCode = ''.obs;
 
+  /// بيانات الاشتراك بخدمة واتساب (opt-in) — من استجابة طلب الرمز.
+  final Rx<OtpOptInInfo> otpOptIn = Rx<OtpOptInInfo>(const OtpOptInInfo());
+
   var secondsRemaining = 60.obs;
   var enableResend = false.obs;
   Timer? timer;
+
+  /// يفتح واتساب على رقم الخدمة مع كلمة الاشتراك معبأة — لاستلام الرمز.
+  Future<void> openWhatsAppForCode() async {
+    final ok = await otpOptIn.value.openWhatsApp();
+    if (!ok) {
+      AppSnackBar.error('تعذر فتح واتساب، تأكد من تثبيته على جهازك');
+    }
+  }
 
   @override
   void onInit() {
@@ -98,6 +110,8 @@ class ForgotPasswordController extends GetxController {
     }
 
     if (handlingData(response) == StatusRequest.success) {
+      // التقاط بيانات الاشتراك — إن كان الرقم غير مشترك يظهر زر واتساب.
+      otpOptIn.value = OtpOptInInfo.fromResponse(response);
       AppSnackBar.success(
         tryResponseMessage(response) ?? 'تم إرسال الرمز إلى واتساب',
       );
@@ -120,6 +134,7 @@ class ForgotPasswordController extends GetxController {
       response = await _model.requestForgotPasswordOtpViaCreateOtp(phone);
     }
     if (handlingData(response) == StatusRequest.success) {
+      otpOptIn.value = OtpOptInInfo.fromResponse(response);
       AppSnackBar.success(
         tryResponseMessage(response) ?? 'تم إعادة إرسال الرمز',
       );
