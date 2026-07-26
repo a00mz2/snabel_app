@@ -269,6 +269,11 @@ class SignUpControler extends GetxController {
   }
 
   void verifyCode() async {
+    // حارس ضد الاستدعاء المزدوج: حقل الـ OTP (onCompleted) + زر «تحقق» قد
+    // يُطلقان verifyCode مرتين، والمزوّد يستهلك الرمز عند أول تحقّق — فتفشل
+    // المحاولة الثانية بـ «رمز غير صالح» ولا يُنشأ الحساب.
+    if (statusRequest.value == StatusRequest.loading) return;
+
     if (rEpasswordController.text != passwordController.text) {
       AppSnackBar.error("كلمة المرور غير متطابقة");
       return;
@@ -289,11 +294,15 @@ class SignUpControler extends GetxController {
     );
 
     if (handlingData(response) == StatusRequest.success) {
-      AppSnackBar.success(response['message']);
+      AppSnackBar.success(response['message'] ?? 'تم إنشاء الحساب بنجاح');
       await login();
     } else {
       statusRequest.value = StatusRequest.success;
-      AppSnackBar.error(tryResponseMessage(response) ?? '');
+      // لا تعرض رسالة فارغة أبداً — يظهر السبب الحقيقي (رمز خاطئ / لا إنترنت / خطأ خادم)
+      AppSnackBar.error(
+        tryResponseMessage(response) ??
+            'تعذّر إكمال التسجيل — تأكد من رمز التحقق واتصالك بالإنترنت ثم حاول مجدداً.',
+      );
       clearOtpField();
     }
   }
@@ -312,7 +321,11 @@ class SignUpControler extends GetxController {
     } else {
       // إعادة الحالة لـ success حتى لا تبقى شاشة OTP مجمّدة
       statusRequest.value = StatusRequest.success;
-      AppSnackBar.error(tryResponseMessage(response) ?? "");
+      // لا تعرض رسالة فارغة — غالباً الحساب أُنشئ وهو بانتظار موافقة الإدارة
+      AppSnackBar.error(
+        tryResponseMessage(response) ??
+            'تم إنشاء حسابك بنجاح، وهو الآن بانتظار موافقة الإدارة. ستتمكن من الدخول بعد اعتماده.',
+      );
     }
   }
 
