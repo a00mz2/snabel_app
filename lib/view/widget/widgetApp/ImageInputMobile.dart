@@ -42,9 +42,14 @@ class ImageUploadField extends StatelessWidget {
       borderRadius: BorderRadius.circular(32),
       onTap: () async {
         final ImagePicker picker = ImagePicker();
+        // تحديد الأبعاد + الجودة يقلّص حجم الملف بشدّة (صور الجوال قد تكون عدة
+        // ميغابايت) — يمنع رفض Nginx (413) للطلب قبل وصوله للخادم، مع بقاء
+        // الوثيقة واضحة ومقروءة.
         final XFile? picked = await picker.pickImage(
           source: ImageSource.gallery,
-          imageQuality: 80,
+          imageQuality: 70,
+          maxWidth: 1600,
+          maxHeight: 1600,
         );
         if (picked != null) {
           final bytes = await picked.readAsBytes();

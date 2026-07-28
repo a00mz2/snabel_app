@@ -27,15 +27,13 @@ class SignUpModel {
     String? phone,
     String? password,
     String? otp,
+    String? reverseRef, // مرجع التحقق العكسي (بديل الـ otp)
     String? address,
     String? storeLocation,
     String? type,
     String? secondaryPhone,
     Uint8List? document,
   }) async {
-    print("=======================");
-    print(type);
-    print("=======================");
     // مسار عام — لا يتطلب توكن، ولا داعي للـ retry بعد 401
     var response = await crud.postDataWithFiles(
       Applink.createCustomer,
@@ -46,6 +44,7 @@ class SignUpModel {
         "phone": phone,
         "password": password,
         "otp": otp,
+        "reverseRef": reverseRef,
         "address": address,
         "storeLocation": storeLocation,
         "Type": type,

@@ -91,6 +91,10 @@ class Applink {
   static String get login => "${customerServer}LogInCustomer";
   static String get createOtp => "${customerServer}createOtp";
 
+  /// التحقق العكسي (المستخدم يُرسل الرمز إلى رقم الخدمة)
+  static String get reverseStart => "${customerServer}reverse/start";
+  static String get reverseStatus => "${customerServer}reverse/status";
+
   /// نسيت كلمة المرور (بدون توكن)
   static String get requestForgotPasswordOtp =>
       "${customerServer}requestForgotPasswordOtp";
