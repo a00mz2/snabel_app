@@ -29,16 +29,19 @@ class ForgotPasswordModel {
     return response.fold((l) => l, (r) => r);
   }
 
-  /// الخطوة 2 — تعيين كلمة المرور الجديدة
+  /// الخطوة 2 — تعيين كلمة المرور الجديدة.
+  /// يقبل التحقق العكسي (reverseRef) أو الـ OTP التقليدي (otp).
   Future<dynamic> resetPasswordWithOtp({
     required String phone,
-    required String otp,
+    String? otp,
+    String? reverseRef,
     required String newPassword,
   }) async {
     final body = <String, dynamic>{
       'phone': phone.trim(),
-      'otp': otp.trim(),
       'newPassword': newPassword,
+      if (otp != null && otp.trim().isNotEmpty) 'otp': otp.trim(),
+      if (reverseRef != null && reverseRef.isNotEmpty) 'reverseRef': reverseRef,
     };
     var response = await crud.postData(
       Applink.resetPasswordWithOtp,

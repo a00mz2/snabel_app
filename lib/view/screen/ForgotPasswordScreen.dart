@@ -5,12 +5,10 @@ import 'package:customer/core/constant/Themes/lightThem.dart';
 import 'package:customer/core/constant/assets/icons.dart';
 import 'package:customer/core/constant/assets/images.dart';
 import 'package:customer/view/widget/widgetApp/ButtonAppWidget.dart';
+import 'package:customer/view/widget/widgetApp/ReverseVerifyBox.dart';
 import 'package:customer/view/widget/widgetApp/textBox.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:otp_text_field/otp_field.dart';
-import 'package:otp_text_field/otp_field_style.dart';
-import 'package:otp_text_field/style.dart';
 
 class ForgotPasswordScreen extends GetView<ForgotPasswordController> {
   const ForgotPasswordScreen({super.key});
@@ -188,7 +186,7 @@ class _ResetStep extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              'تم إرسال رمز مكوّن من 6 أرقام إلى واتساب: ${controller.phoneController.text}',
+              'رقمك: ${controller.phoneController.text}',
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                     color: subtitleColor,
@@ -197,101 +195,30 @@ class _ResetStep extends StatelessWidget {
             ),
           ),
 
-          // زر الاشتراك بخدمة واتساب — يظهر فقط عندما يكون الرقم غير مشترك
-          // بعد (pending): الرمز محجوز وسيصل فور إرسال كلمة الاشتراك.
-          Obx(
-            () => controller.otpOptIn.value.showOptInButton
-                ? Container(
-                    margin: const EdgeInsets.only(top: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE9F9EF),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF25D366)),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          controller.otpOptIn.value.displayInstruction,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: titleColor,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 46,
-                          child: ElevatedButton.icon(
-                            onPressed: controller.openWhatsAppForCode,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF25D366),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                            ),
-                            icon: const Icon(Icons.chat, color: Colors.white),
-                            label: const Text(
-                              'اضغط للحصول على الكود',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
+          const SizedBox(height: 20),
+          // التحقق العكسي (رمز + زر واتساب + حالة لحظية/يدوية)
+          ReverseVerifyBox(controller: controller),
 
-          const SizedBox(height: 28),
-          Directionality(
-            textDirection: TextDirection.ltr,
-            child: OTPTextField(
-              keyboardType: TextInputType.number,
-              otpFieldStyle: OtpFieldStyle(
-                borderColor: subtitleColor.withValues(alpha: 0.5),
-                focusBorderColor: brown,
+          const SizedBox(height: 8),
+          // إعادة بدء جلسة تحقّق جديدة
+          Center(
+            child: TextButton(
+              onPressed: () => controller.restartReverse(),
+              child: Text(
+                'إعادة إرسال رمز جديد',
+                style: TextStyle(color: brown, fontWeight: FontWeight.w600),
               ),
-              controller: controller.otpFieldController,
-              length: 6,
-              width: MediaQuery.of(context).size.width,
-              fieldWidth: 42,
-              style: const TextStyle(fontSize: 17),
-              textFieldAlignment: MainAxisAlignment.spaceAround,
-              fieldStyle: FieldStyle.box,
-              onChanged: (pin) => controller.otpCode.value = pin,
-              onCompleted: (pin) => controller.otpCode.value = pin,
             ),
           ),
-          const SizedBox(height: 16),
-          Obx(
-            () {
-              if (controller.enableResend.value) {
-                return TextButton(
-                  onPressed: controller.resendOtp,
-                  child: Text(
-                    'إعادة إرسال الرمز',
-                    style: TextStyle(
-                      color: brown,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                );
-              }
-              final s = controller.secondsRemaining.value;
-              return Text(
-                'يمكنك إعادة الإرسال خلال 00:${s.toString().padLeft(2, '0')}',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: subtitleColor, fontSize: 13),
-              );
-            },
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'كلمة المرور الجديدة',
+              style: TextStyle(color: subtitleColor, fontSize: 13),
+            ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 8),
           Obx(
             () => TextBoxs(
               prefixIcon: Container(

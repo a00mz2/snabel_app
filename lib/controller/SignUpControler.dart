@@ -16,9 +16,11 @@ import 'package:get/get.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:customer/core/class/otp_opt_in.dart';
+import 'package:customer/core/class/reverse_verify_mixin.dart';
+import 'package:customer/view/screen/RegistrationSuccessScreen.dart';
 import 'package:otp_text_field/otp_field.dart';
 
-class SignUpControler extends GetxController {
+class SignUpControler extends GetxController with ReverseVerifyMixin {
   SignUpModel model = SignUpModel(Get.find());
   LoginModel loginModel = LoginModel(Get.find());
 
@@ -33,6 +35,13 @@ class SignUpControler extends GetxController {
     storeNameController = TextEditingController();
     addressController = TextEditingController();
     locationController = TextEditingController();
+  }
+
+  @override
+  void onClose() {
+    disposeReverse();
+    timer?.cancel();
+    super.onClose();
   }
 
   Rx<StatusRequest> buttonStatusRequest = StatusRequest.success.obs;
@@ -194,26 +203,77 @@ class SignUpControler extends GetxController {
       return;
     }
 
-    // 9. كل التحقق نجح — إرسال OTP
+    // 9. كل التحقق نجح — بدء التحقق العكسي (المستخدم يُرسل الرمز لرقم الخدمة)
     buttonStatusRequest.value = StatusRequest.loading;
-    var response = await model.createOtp(phoneController.text);
-
-    if (handlingData(response) == StatusRequest.success) {
-      // التقاط بيانات الاشتراك (opt-in) — إن كان الرقم غير مشترك بعد،
-      // تعرض شاشة OTP زر «اضغط للحصول على الكود» الذي يفتح واتساب.
-      otpOptIn.value = OtpOptInInfo.fromResponse(response);
-      AppSnackBar.success(response['message'] ?? "تم إرسال رمز التحقق");
-      Get.toNamed("/Otp");
-      startTimer();
-    } else {
-      try {
-        AppSnackBar.error(response['message'] ?? "هناك خطأ ما");
-      } catch (_) {
-        AppSnackBar.error("هناك خطأ ما، يرجى المحاولة مجدداً");
-      }
-    }
-
+    final started = await startReverse(phoneController.text.trim(), 'register');
     buttonStatusRequest.value = StatusRequest.success;
+
+    if (started) {
+      Get.toNamed("/Otp"); // شاشة التحقق العكسي (تعرض الرمز + زر واتساب)
+    } else {
+      AppSnackBar.error(
+        reverseError.value.isEmpty ? "تعذّر بدء التحقق" : reverseError.value,
+      );
+    }
+  }
+
+  /// يُستدعى تلقائياً فور نجاح التحقق العكسي → إنشاء الحساب مباشرةً.
+  @override
+  void onReverseVerified() {
+    submitRegistration();
+  }
+
+  final RxBool submitting = false.obs;
+
+  /// رسالة النجاح المعروضة في صفحة النجاح (من الخادم أو نص افتراضي).
+  final RxString successMessage = ''.obs;
+
+  /// من صفحة النجاح عند ضغط «موافق» → تسجيل الدخول والانتقال للتطبيق.
+  Future<void> proceedToApp() async {
+    await login();
+  }
+
+  /// إنشاء الحساب بعد اكتمال التحقق العكسي (يمرّر reverseRef بدل otp).
+  Future<void> submitRegistration() async {
+    if (submitting.value) return;
+    if (!reverseVerified.value) {
+      AppSnackBar.warning('لم يكتمل التحقق بعد');
+      return;
+    }
+    submitting.value = true;
+    statusRequest.value = StatusRequest.loading;
+    try {
+      var response = await model.createCustomer(
+        customerName: customerNameController.text,
+        storeName: storeNameController.text,
+        province: province['value'],
+        phone: phoneController.text,
+        address: addressController.text,
+        storeLocation: locationController.text,
+        type: customerType['value'],
+        password: passwordController.text,
+        reverseRef: reverseRef,
+        document: imageElmint.value,
+      );
+
+      if (handlingData(response) == StatusRequest.success) {
+        // أوقف التحميل واعرض صفحة النجاح؛ الدخول يتم عند ضغط «موافق».
+        statusRequest.value = StatusRequest.success;
+        successMessage.value =
+            response['message']?.toString().trim().isNotEmpty == true
+            ? response['message'].toString()
+            : '';
+        Get.to(() => RegistrationSuccessScreen());
+      } else {
+        statusRequest.value = StatusRequest.success;
+        AppSnackBar.error(
+          tryResponseMessage(response) ??
+              'تعذّر إكمال التسجيل، تأكد من اتصالك بالإنترنت وحاول مجدداً.',
+        );
+      }
+    } finally {
+      submitting.value = false;
+    }
   }
 
   //=========================otp=========================
