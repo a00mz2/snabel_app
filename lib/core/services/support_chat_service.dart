@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:customer/core/services/services.dart';
 import 'package:customer/core/services/support_http.dart';
@@ -51,8 +52,18 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
 
   Timer? _backgroundTimer;
   Timer? _retryTimer;
-  int _authRetries = 0;
+  Timer? _watchdog;
+  Timer? _authRetryTimer;
+  DateTime? _lastPingAt;
+  int _attempt = 0;
+
+  /// رفضٌ لا يُصلحه تكرار المحاولة (حساب موقوف/محذوف). يُلغى عند [start].
+  String? _fatalCode;
   bool _started = false;
+
+  static const int _backoffBaseMs = 1000;
+  static const int _backoffMaxMs = 45000; // أطول من اللوحة حفاظاً على البطارية
+  static final math.Random _rand = math.Random();
 
   @override
   void onInit() {
@@ -65,6 +76,8 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _backgroundTimer?.cancel();
     _retryTimer?.cancel();
+    _authRetryTimer?.cancel();
+    _watchdog?.cancel();
     _teardown();
     _events.close();
     super.onClose();
@@ -105,6 +118,15 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
   void start() {
     if (!_eligible) return;
     _started = true;
+    _fatalCode = null;
+    _attempt = 0;
+    _watchdog?.cancel();
+    // حارس دوري: يلتقط السوكِت الميت بعد نوم الجهاز، والسوكِت نصف المفتوح الذي
+    // تظنّه المكتبة حيّاً بينما لا يصل منه شيء.
+    _watchdog = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _heartbeat(),
+    );
     _connect();
     unawaited(syncUnread());
   }
@@ -114,6 +136,13 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
     _started = false;
     _backgroundTimer?.cancel();
     _retryTimer?.cancel();
+    _retryTimer = null;
+    _authRetryTimer?.cancel();
+    _authRetryTimer = null;
+    _watchdog?.cancel();
+    _watchdog = null;
+    _attempt = 0;
+    _fatalCode = null;
     _teardown();
     unreadTotal.value = 0;
     conversationId.value = null;
@@ -123,19 +152,103 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (!_started) return;
-    if (state == AppLifecycleState.resumed) {
-      _backgroundTimer?.cancel();
-      _backgroundTimer = null;
-      if (_socket == null || !(_socket?.connected ?? false)) _connect();
-      unawaited(syncUnread());
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      // مهلة قصيرة: التنقل إلى الكاميرا أو مركز الإشعارات ليس سبباً لقطع الاتصال
-      _backgroundTimer?.cancel();
-      _backgroundTimer = Timer(const Duration(seconds: 25), () {
-        _socket?.disconnect();
-      });
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _backgroundTimer?.cancel();
+        _backgroundTimer = null;
+        _attempt = 0; // العودة إلى المقدّمة ليست فشلاً
+        if (_socket?.connected != true) {
+          _scheduleReconnect(immediate: true);
+        } else if (_pingStale) {
+          _hardReset();
+        }
+        unawaited(syncUnread());
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden: // أندرويد 14+ يمرّ بها قبل paused
+      case AppLifecycleState.detached:
+        // مهلة قصيرة: التنقل إلى الكاميرا أو مركز الإشعارات ليس سبباً لقطع الاتصال
+        _backgroundTimer?.cancel();
+        _backgroundTimer = Timer(const Duration(seconds: 25), () {
+          _socket?.disconnect(); // سببه `io client disconnect` فلا يُجدوَل تعافٍ
+        });
+      case AppLifecycleState.inactive:
+        break; // سحب مركز التحكم ليس خلفية
     }
+  }
+
+  // ───────────── آلة حالة إعادة الاتصال ─────────────
+
+  static const Set<String> _fatalCodes = <String>{
+    'ACCOUNT_DELETED',
+    'ACCOUNT_INACTIVE',
+    'ACCOUNT_NOT_FOUND',
+    'INSUFFICIENT_PERMISSIONS',
+  };
+
+  /// ⚠️ `TOKEN_INVALID` **ليس** قاتلاً: الخادم يُعيده لأي توكن بائت أو مشوّه، وكلها
+  /// يصلحها تجديد. وانتهاء الجلسة الحقيقي يُنهيه [stop] من طبقة تسجيل الخروج.
+  static bool _isFatal(String? code) =>
+      code != null && _fatalCodes.contains(code);
+
+  /// **المدخل الوحيد** لبدء أي محاولة اتصال — وهذا وحده ما يمنع تزاحم المحفّزات
+  /// (عودة التطبيق + الحارس + خطأ المصافحة) في عاصفة إعادة اتصال.
+  void _scheduleReconnect({bool immediate = false}) {
+    if (!_started || _fatalCode != null) return;
+    if (_retryTimer?.isActive == true) return;
+    if (_socket?.connected == true) return;
+    final delay = immediate ? const Duration(milliseconds: 250) : _nextDelay();
+    _attempt++;
+    _retryTimer = Timer(delay, () {
+      _retryTimer = null;
+      if (!_started || _fatalCode != null) return;
+      _connect();
+    });
+  }
+
+  Duration _nextDelay() {
+    final shift = _attempt > 5 ? 5 : _attempt;
+    final ceil = math.min(_backoffMaxMs, _backoffBaseMs << shift);
+    final floor = ceil ~/ 2;
+    return Duration(milliseconds: floor + _rand.nextInt(ceil - floor + 1));
+  }
+
+  void _enterFatal(String code) {
+    _fatalCode = code;
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _authRetryTimer?.cancel();
+    _authRetryTimer = null;
+    isConnected.value = false;
+  }
+
+  void _heartbeat() {
+    if (!_started || _fatalCode != null) return;
+    if (_socket?.connected != true) {
+      _scheduleReconnect();
+      return;
+    }
+    if (_pingStale) _hardReset();
+  }
+
+  /// مضى أكثر من نبضتين بلا بينغ بينما المكتبة تظنّ الاتصال قائماً.
+  bool get _pingStale {
+    final last = _lastPingAt;
+    if (last == null) return false;
+    return DateTime.now().difference(last) > const Duration(seconds: 70);
+  }
+
+  void _hardReset() {
+    final socket = _socket;
+    isConnected.value = false;
+    _lastPingAt = null;
+    if (socket != null) {
+      try {
+        socket.disconnect();
+      } catch (_) {
+        /* تجاهل */
+      }
+    }
+    _scheduleReconnect(immediate: true);
   }
 
   void _connect() {
@@ -146,16 +259,27 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
     }
 
     final options = io.OptionBuilder()
-        .setTransports(<String>['websocket'])
+        // ⚠️ polling أولاً: لا يوجد سقوط تلقائي بين الناقلات في engine.io — يُستعمل
+        // `transports[0]` دائماً. فتثبيت websocket وحده خلف وسيط يُسقط ترويسة
+        // الترقية يعني حلقة محاولات أبدية بدل اتصال يعمل. وpolling يترقّى تلقائياً.
+        .setTransports(<String>['polling', 'websocket'])
         .disableAutoConnect()
         .enableForceNew()
+        .setTimeout(20000)
         .setReconnectionDelay(1500)
         .setReconnectionDelayMax(20000)
         .setRandomizationFactor(0.5)
         .setAckTimeout(8000)
         .setAuthFn((cb) async {
-          final token = await _freshToken();
-          cb(<String, dynamic>{'token': token ?? ''});
+          // ⚠️ ممنوع الرمي هنا: إن لم تُستدعَ `cb` لا تُرسَل حزمة CONNECT إطلاقاً،
+          // فلا `connect` ولا `connect_error` — تعليق صامت أبدي بلا أي مهلة تغطّيه.
+          String token = '';
+          try {
+            token = await _freshToken() ?? '';
+          } catch (_) {
+            // نترك الخادم يرفض ثم نُعيد المحاولة بتوكن طازج
+          }
+          cb(<String, dynamic>{'token': token});
         })
         .build();
 
@@ -164,11 +288,26 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
     _socket = socket;
 
     socket.onConnect((_) {
-      _authRetries = 0;
+      _attempt = 0;
+      _retryTimer?.cancel();
+      _retryTimer = null;
+      _fatalCode = null;
+      _lastPingAt = DateTime.now();
       isConnected.value = true;
     });
-    socket.onDisconnect((_) => isConnected.value = false);
+    socket.onDisconnect((reason) {
+      final r = reason?.toString() ?? '';
+      isConnected.value = false;
+      _lastPingAt = null;
+      if (r == 'io client disconnect') return; // نحن من قطعنا (خلفية/تصفير)
+      if (_fatalCode != null) return;
+      // ⚠️ `io server disconnect` (مؤقّت انتهاء التوكن في البوابة) يضبط
+      // `skipReconnect = true` في مدير المكتبة فلا تُعاد المحاولة أبداً.
+      _scheduleReconnect();
+    });
     socket.onConnectError(_onConnectError);
+    socket.onPing((_) => _lastPingAt = DateTime.now());
+    socket.onReconnectFailed((_) => _scheduleReconnect());
 
     socket.on('chat:message', (d) => _push(SupportChatEventType.message, d));
     socket.on(
@@ -187,7 +326,11 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
       }
       _push(SupportChatEventType.unread, d);
     });
-    socket.on('chat:error', (d) => _push(SupportChatEventType.error, d));
+    socket.on('chat:error', (d) {
+      final code = _asMap(d)?['code']?.toString();
+      if (_isFatal(code)) _enterFatal(code!);
+      _push(SupportChatEventType.error, d);
+    });
     socket.on('chat:token_expiring', (_) => _refreshSocketAuth());
 
     socket.connect();
@@ -237,51 +380,68 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
     return ok ? _token : current;
   }
 
+  /// تجديد المصادقة على اتصال قائم.
+  ///
+  /// نجاحه **يُعيد تسليح مؤقّت القتل في الخادم**، فهو خطّ الدفاع الأول ضد دورة
+  /// القطع عند كل انتهاء توكن.
   Future<void> _refreshSocketAuth() async {
+    _authRetryTimer?.cancel();
     final socket = _socket;
     if (socket == null || !socket.connected) return;
     final token = await _freshToken();
-    if (token == null) return;
-    socket.emit('chat:auth', <String, dynamic>{'token': token});
-  }
-
-  void _onConnectError(dynamic raw) {
-    isConnected.value = false;
-    final map = _asMap(raw);
-    final isServerRejection = map != null && map['message'] != null;
-    if (!isServerRejection) return; // خطأ نقل — المكتبة تعيد المحاولة
-
-    final code = _asMap(map['data'])?['code']?.toString();
-    if (code == 'ACCOUNT_INACTIVE' ||
-        code == 'ACCOUNT_DELETED' ||
-        code == 'ACCOUNT_NOT_FOUND' ||
-        code == 'INSUFFICIENT_PERMISSIONS' ||
-        code == 'TOKEN_INVALID') {
-      // لا فائدة من إعادة المحاولة — رسائل الحساب تصل عبر مسارات REST العادية
-      _teardown();
+    if (token == null) {
+      _authRetryTimer = Timer(const Duration(seconds: 15), _refreshSocketAuth);
       return;
     }
-
-    if (code == 'TOKEN_EXPIRED') {
-      if (_authRetries >= 2) {
-        _teardown();
-        return;
-      }
-      _authRetries++;
-      _retryTimer?.cancel();
-      _retryTimer = Timer(Duration(seconds: _authRetries * 3), () async {
-        final ok = await SupportHttp.forCurrentRole().refreshToken();
-        if (!ok) {
-          _teardown();
+    socket.emitWithAck(
+      'chat:auth',
+      <String, dynamic>{'token': token},
+      // ⚠️ توقيع «الخطأ أولاً» إلزامي مع `setAckTimeout` — راجع بقية الملف.
+      // وكان هذا الحدث يُرسَل **بلا ack إطلاقاً**، فرفضُ التجديد يمرّ بلا أثر ثم
+      // يقطع الخادم الاتصال بعد دقيقة بلا أي إشارة للمستخدم.
+      ack: (dynamic err, [dynamic res]) {
+        if (err != null) {
+          _authRetryTimer = Timer(
+            const Duration(seconds: 5),
+            _refreshSocketAuth,
+          );
           return;
         }
-        _socket?.connect();
-      });
+        final map = _asMap(res);
+        if (map?['ok'] == true) {
+          // نجدّد بأنفسنا قبل انتهاء المدّة بدقيقة بدل انتظار `chat:token_expiring`
+          final ms = (map!['expiresInMs'] as num?)?.toInt() ?? 0;
+          final lead = ms - 60000;
+          if (lead > 0) {
+            _authRetryTimer = Timer(
+              Duration(milliseconds: lead),
+              _refreshSocketAuth,
+            );
+          }
+          return;
+        }
+        final code = map?['code']?.toString();
+        if (_isFatal(code)) {
+          _enterFatal(code!);
+          return;
+        }
+        _authRetryTimer = Timer(const Duration(seconds: 5), _refreshSocketAuth);
+      },
+    );
+  }
+
+  /// رفض المصافحة. القاتل يُوقف، وكل ما عداه يمرّ على آلة الحالة.
+  ///
+  /// ⚠️ لا `_teardown()` هنا بعد اليوم: كانت محاولتا مصادقة فاشلتان — أو فشل تجديد
+  /// عابر واحد على شبكة الجوال — تقتل الدردشة **نهائياً** حتى إعادة تشغيل التطبيق.
+  void _onConnectError(dynamic raw) {
+    isConnected.value = false;
+    final code = _asMap(_asMap(raw)?['data'])?['code']?.toString();
+    if (_isFatal(code)) {
+      _enterFatal(code!);
       return;
     }
-
-    _retryTimer?.cancel();
-    _retryTimer = Timer(const Duration(seconds: 15), () => _socket?.connect());
+    _scheduleReconnect();
   }
 
   // ───────────── الأحداث الصادرة ─────────────
@@ -358,13 +518,18 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
   }
 
   /// لحاق بعد انقطاع — يُرجع الرسائل التي وصلت بعد [afterMessageId] فقط.
-  Future<List<dynamic>> sync({String? afterMessageId}) async {
+  /// ⚠️ `hasMore` جزء من العقد: الخادم يسقف الصفحة بـ200 رسالة، فمن كان مقطوعاً
+  /// عبر أكثر من ذلك يفقد الباقي بصمت ما لم يُستأنف السحب بالمؤشّر.
+  Future<({List<dynamic> messages, bool hasMore})> sync({
+    String? afterMessageId,
+  }) async {
+    const empty = (messages: <dynamic>[], hasMore: false);
     final socket = _socket;
     final id = conversationId.value;
     if (socket == null || !socket.connected || id == null) {
-      return const <dynamic>[];
+      return empty;
     }
-    final completer = Completer<List<dynamic>>();
+    final completer = Completer<({List<dynamic> messages, bool hasMore})>();
     socket.emitWithAck(
       'chat:sync',
       <String, dynamic>{
@@ -377,12 +542,15 @@ class SupportChatService extends GetxService with WidgetsBindingObserver {
         if (completer.isCompleted) return;
         final map = err == null ? _asMap(res) : null;
         final raw = map?['messages'];
-        completer.complete(raw is List ? raw : const <dynamic>[]);
+        completer.complete((
+          messages: raw is List ? raw : const <dynamic>[],
+          hasMore: map?['hasMore'] == true,
+        ));
       },
     );
     return completer.future.timeout(
       const Duration(seconds: 10),
-      onTimeout: () => const <dynamic>[],
+      onTimeout: () => empty,
     );
   }
 

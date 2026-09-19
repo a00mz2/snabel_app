@@ -96,11 +96,19 @@ class SupportChatController extends GetxController {
   StreamSubscription<SupportChatEvent>? _sub;
   Timer? _typingExpiry;
 
+  Worker? _connWorker;
+
   @override
   void onInit() {
     super.onInit();
     _service.isChatScreenOpen.value = true;
     _sub = _service.events.listen(_onEvent);
+    // [chat-resync] عضوية غرفة الخيط لكل اتصال على حدة وتضيع مع أي انقطاع، ولا
+    // يُعيدها شيء — فتتوقف مؤشّرات الكتابة وتعليم القراءة. واللحاق بما فات كان
+    // مبنياً على الخادم بلا أي مُستدعٍ في التطبيق.
+    _connWorker = ever<bool>(_service.isConnected, (connected) {
+      if (connected) unawaited(_resumeAfterReconnect());
+    });
     load();
   }
 
@@ -110,8 +118,54 @@ class SupportChatController extends GetxController {
     final id = conversationId;
     if (id != null) _service.emitClose(id);
     _sub?.cancel();
+    _connWorker?.dispose();
     _typingExpiry?.cancel();
     super.onClose();
+  }
+
+  /// يُستدعى عند **كل** اتصال ناجح: إعادة دخول الغرفة ثم سحب ما فات.
+  Future<void> _resumeAfterReconnect() async {
+    final id = conversationId;
+    if (id == null) return;
+    _joinRoom(); // يُعيد الانضمام ويؤدّي القراءة في الخادم
+
+    final after = _lastServerMessageId();
+    if (after == null) {
+      // ⚠️ `chat:sync` بلا مؤشّر يسقط في فرع «أحدث صفحة» على الخادم فيُرجع
+      // `hasMore`/`nextBefore` الخاصَّين بالترقيم للخلف — إهمالهما يكسر «تحميل
+      // الأقدم». نُعيد التحميل الكامل الذي يضبطهما.
+      await load();
+      return;
+    }
+
+    // ⚠️ حلقة لا نداء واحد: الخادم يسقف الصفحة بـ200 رسالة ويُعيد `hasMore`.
+    var cursor = after;
+    var merged = false;
+    for (var round = 0; round < 5; round++) {
+      final page = await _service.sync(afterMessageId: cursor);
+      if (conversationId != id) return; // تبدّلت المحادثة أثناء الانتظار
+      if (page.messages.isEmpty) break;
+      String? last;
+      for (final e in page.messages) {
+        if (e is! Map) continue;
+        final m = SupportMessage.fromJson(e.cast<String, dynamic>());
+        _upsert(m);
+        if (m.id.isNotEmpty) last = m.id;
+      }
+      merged = true;
+      if (!page.hasMore || last == null) break;
+      cursor = last;
+    }
+    if (merged) await _markRead();
+  }
+
+  /// آخر رسالة لها معرّف من الخادم — الرسائل المتفائلة قيد الإرسال بلا معرّف.
+  String? _lastServerMessageId() {
+    for (var i = messages.length - 1; i >= 0; i--) {
+      final id = messages[i].id;
+      if (id.isNotEmpty) return id;
+    }
+    return null;
   }
 
   // ───────────── التحميل ─────────────
