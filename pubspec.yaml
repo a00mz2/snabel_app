@@ -48,6 +48,8 @@ dependencies:
   latlong2: ^0.9.1
   jwt_decoder: ^2.0.1
   connectivity_plus: ^6.1.4
+  # «تواصل مع الدعم» — دردشة لحظية مع الإدارة
+  socket_io_client: ^3.1.6
   internet_connection_checker_plus: ^2.7.2
   file_picker: ^10.3.1
   flutter_dropzone: ^4.2.1

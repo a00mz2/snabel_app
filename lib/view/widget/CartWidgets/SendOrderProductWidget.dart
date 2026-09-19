@@ -3,6 +3,7 @@ import 'package:customer/core/constant/Themes/lightThem.dart';
 import 'package:customer/core/functions/formatNumber.dart';
 import 'package:customer/linkApi.dart';
 import 'package:customer/view/widget/widgetApp/app_network_image.dart';
+import 'package:customer/view/widget/widgetApp/SpecialPriceBadge.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -126,6 +127,12 @@ class SendOrderProductWidget extends StatelessWidget {
                                 fontWeight: MyFontWeight.light,
                               ),
                         ),
+                        if (hasSpecialPrice(
+                          controller.dataCart[index]['product'],
+                        )) ...[
+                          const SizedBox(width: 6),
+                          const SpecialPriceBadge(compact: true),
+                        ],
                       ],
                     ),
                   ],

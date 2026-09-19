@@ -31,6 +31,8 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 <string>نحتاج إلى الوصول إلى موقعك لتحديد عنوان التوصيل بدقة وتوصيل طلبات المخبوزات والمعجنات إلى مكانك الحالي بسهولة.</string>	<key>NSPhotoLibraryUsageDescription</key>
 	<string>نحتاج الوصول إلى الصور لاختيار صورة الملف الشخصي أو المستندات</string>
+	<key>NSCameraUsageDescription</key>
+	<string>نحتاج إلى الكاميرا لالتقاط صورة تؤكد تسليم الطلب للزبون.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

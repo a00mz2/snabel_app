@@ -6,6 +6,8 @@ import 'package:customer/core/constant/assets/lottie.dart';
 import 'package:customer/view/widget/CartWidgets/PriceFltatBar.dart';
 import 'package:customer/view/widget/CartWidgets/SendOrderProductWidget.dart';
 import 'package:customer/view/widget/CartWidgets/TitleBar.dart';
+import 'package:customer/view/widget/sendOrderWidget/OrderNoteField.dart';
+import 'package:customer/view/widget/sendOrderWidget/PaymentMethodSelector.dart';
 import 'package:customer/view/widget/sendOrderWidget/SchedulingWidget.dart';
 import 'package:customer/view/widget/widgetApp/ButtonAppWidget.dart';
 import 'package:customer/view/widget/widgetApp/DashedDividerWidget.dart';
@@ -41,6 +43,22 @@ class SendOrderScreen extends StatelessWidget {
       statusCode: controller.statusCode,
       child: ListView(
         children: [
+          SizedBox(height: 20),
+          // [pay-method] طريقة الدفع قبل الملاحظة — قرار يغيّر أثر الطلب مالياً
+          Obx(
+            () => PaymentMethodSelector(
+              value: controller.orderPaymentMethod.value,
+              onChanged: controller.setOrderPaymentMethod,
+            ),
+          ),
+          SizedBox(height: 20),
+          // الملاحظة أعلى الصفحة — أول ما يراه التاجر قبل مراجعة المنتجات
+          Obx(
+            () => OrderNoteField(
+              initialValue: controller.orderNote.value,
+              onChanged: (v) => controller.orderNote.value = v,
+            ),
+          ),
           SizedBox(height: 20),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),

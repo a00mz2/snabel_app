@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 
 String _statusKey(status) => status?.toString().trim() ?? '';
 
+/// حالات التسليم الفعلي — «واصل جزئي» تسليم حقيقي بمحتوى معدَّل.
+/// مصدر الحقيقة الوحيد: يستخدمه تبويب «مكتمل» وبوابة التقييم معاً فلا يتفرّق التعريفان.
+const Set<String> kDeliveredOrderStatuses = <String>{'تم التسليم', 'واصل جزئي'};
+
+bool isDeliveredStatus(dynamic status) =>
+    kDeliveredOrderStatuses.contains(_statusKey(status));
+
 Color statusOrderColors(status) {
   switch (_statusKey(status)) {
     case "جديد":
@@ -17,6 +24,8 @@ Color statusOrderColors(status) {
       return Color(0xffF39316);
     case "تم التسليم":
       return Color(0xff12B76A);
+    case "واصل جزئي":
+      return Color(0xff0E9F6E);
     case "مرفوض":
       return Color(0xffF31616);
     default:
@@ -44,6 +53,9 @@ Widget statusOrderIcon(status) {
       return _badgeImage(AppIcons.DeliveryOrderStatus);
 
     case "تم التسليم":
+      return _badgeImage(AppIcons.SuccessOrderStatus);
+
+    case "واصل جزئي":
       return _badgeImage(AppIcons.SuccessOrderStatus);
 
     case "مرفوض":

@@ -3,6 +3,7 @@ import 'package:customer/core/class/statusRequest.dart';
 import 'package:customer/core/functions/pinned_order_utils.dart';
 import 'package:customer/linkApi.dart';
 import 'package:customer/view/widget/widgetApp/ButtonAppWidget.dart';
+import 'package:customer/view/widget/widgetApp/QuantityInputDialog.dart';
 import 'package:customer/view/widget/widgetApp/ScaffoldWidget.dart';
 import 'package:customer/view/widget/widgetApp/app_network_image.dart';
 import 'package:flutter/material.dart';
@@ -390,11 +391,25 @@ class PinnedOrderEditScreen extends GetView<PinnedOrderEditController> {
                     : null,
                 icon: const Icon(Icons.remove_circle_outline),
               ),
-              Text(
-                '${line.quantity}',
-                style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+              // النقر على الرقم يفتح مربع كتابة الكمية
+              InkWell(
+                borderRadius: BorderRadius.circular(6),
+                onTap: () async {
+                  final v = await showQuantityInputDialog(
+                    context,
+                    current: line.quantity,
+                  );
+                  if (v != null) controller.setQty(index, v);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    '${line.quantity}',
+                    style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
               ),
               IconButton(
                 onPressed: () => controller.bumpQty(index, 1),

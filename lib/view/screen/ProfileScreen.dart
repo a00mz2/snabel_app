@@ -3,6 +3,7 @@ import 'package:customer/core/constant/Themes/lightThem.dart';
 import 'package:customer/core/constant/assets/icons.dart';
 import 'package:customer/core/constant/assets/images.dart';
 import 'package:customer/core/services/services.dart';
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:customer/linkApi.dart';
 import 'package:customer/view/widget/widgetApp/app_network_image.dart';
 import 'package:customer/view/widget/widgetApp/ScaffoldWidget.dart';
@@ -135,6 +136,16 @@ class ProfileScreen extends StatelessWidget {
                       AppIcons.tabler_pin,
                       onTap: () => Get.toNamed('/PinnedOrders'),
                     ),
+                    Obx(
+                      () => listTileWidget(
+                        context,
+                        "تواصل مع الدعم",
+                        AppIcons.call,
+                        badgeCount:
+                            Get.find<SupportChatService>().unreadTotal.value,
+                        onTap: () => Get.toNamed('/SupportChat'),
+                      ),
+                    ),
                     listTileWidget(
                       context,
                       "وسائل الاتصال",
@@ -195,6 +206,7 @@ class ProfileScreen extends StatelessWidget {
     icon, {
     void Function()? onTap,
     bool? isLogOun,
+    int badgeCount = 0,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -232,12 +244,37 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ],
             ),
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: isLogOun == null
-                  ? Image.asset(AppIcons.arrow_forward)
-                  : Image.asset(AppIcons.logOut),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (badgeCount > 0)
+                  Container(
+                    margin: EdgeInsets.only(left: 8),
+                    padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    constraints: BoxConstraints(minWidth: 22),
+                    decoration: BoxDecoration(
+                      color: Color(0xffF31616),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      badgeCount > 99 ? '99+' : '$badgeCount',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: isLogOun == null
+                      ? Image.asset(AppIcons.arrow_forward)
+                      : Image.asset(AppIcons.logOut),
+                ),
+              ],
             ),
           ],
         ),

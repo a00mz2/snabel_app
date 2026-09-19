@@ -3,6 +3,8 @@
 import 'dart:convert';
 import 'package:customer/linkApi.dart';
 import 'package:customer/core/services/services.dart';
+import 'package:customer/core/services/notification_service.dart';
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:customer/view/screen/ForceUpdateScreen.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -86,6 +88,19 @@ class SplashController extends GetxController {
     Get.offAllNamed(
       targetRoute == null || targetRoute.isEmpty ? "/" : targetRoute,
     );
+
+    // جلسة زبون قائمة عند الإقلاع → وصل الدردشة اللحظية (الخدمة تتحقق من الدور بنفسها)
+    if (hasToken && Get.isRegistered<SupportChatService>()) {
+      Get.find<SupportChatService>().start();
+    }
+
+    // إشعار دعم فتح التطبيق من حالة الإغلاق: SplashController يستبدل الشاشة بعد
+    // إعادة التوجيه في main.dart، فنُعيد فتح الدردشة هنا حتى لا يضيع الرابط العميق.
+    final pending = NotificationService.initialNotificationData;
+    if (hasToken && pending?['type']?.toString() == 'SUPPORT_CHAT') {
+      NotificationService.initialNotificationData = null;
+      Get.toNamed('/SupportChat');
+    }
   }
 
   @override

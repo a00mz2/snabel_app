@@ -10,6 +10,7 @@ import 'package:customer/model/LoginModel.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:get/get.dart';
 
 class LoginController extends GetxController {
@@ -91,6 +92,11 @@ class LoginController extends GetxController {
     );
     myServices.sharedPreferences.setString("router", "/MainScreen");
     myServices.sharedPreferences.setString("userRole", "customer");
+
+    // بعد ضبط userRole مباشرةً — الخدمة تتحقق منه قبل الاتصال (التطبيق مشترك مع السائق)
+    if (Get.isRegistered<SupportChatService>()) {
+      Get.find<SupportChatService>().start();
+    }
 
     final FirebaseMessaging messaging = FirebaseMessaging.instance;
     String? token = await messaging.getToken();

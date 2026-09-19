@@ -4,6 +4,7 @@ import 'package:customer/core/services/services.dart';
 
 class Applink {
   static const String _defaultHost = "https://api.snabel.app/";
+  // static const String _defaultHost = "https://api-test.snabel.app/";
 
   static String get host {
     try {
@@ -91,10 +92,6 @@ class Applink {
   static String get login => "${customerServer}LogInCustomer";
   static String get createOtp => "${customerServer}createOtp";
 
-  /// التحقق العكسي (المستخدم يُرسل الرمز إلى رقم الخدمة)
-  static String get reverseStart => "${customerServer}reverse/start";
-  static String get reverseStatus => "${customerServer}reverse/status";
-
   /// نسيت كلمة المرور (بدون توكن)
   static String get requestForgotPasswordOtp =>
       "${customerServer}requestForgotPasswordOtp";
@@ -131,6 +128,13 @@ class Applink {
   static String get createOrderFromCart =>
       "${customerServer}createOrderFromCart";
   static String get getOrders => "${adminServer}getOrders";
+  /// تعديل محتوى طلب «جديد» (كميات/حذف/إضافة) — الفرق يُسوّى على المحفظة
+  static String get updateOrderContent =>
+      "${customerServer}updateOrderContent";
+
+  // ───────────── التقييمات (بعد التسليم فقط) ─────────────
+  static String get rateOrderProduct => "${customerServer}ratings/product";
+  static String get rateOrderDriver => "${customerServer}ratings/driver";
   static String get getTransactions => "${adminServer}getTransactions";
   static String get updateCustomer => "${customerServer}updateCustomer";
   static String get softDeleteMyAccount => "${customerServer}softDeleteMyAccount";
@@ -143,6 +147,29 @@ class Applink {
 
   /// وسائل التواصل (عامة — بدون توكن إداري)
   static String get getContactMethods => "${customerServer}getContactMethods";
+
+  // ───────────── تواصل مع الدعم (دردشة لحظية) ─────────────
+  /// دور الجلسة الحالية: `customer` أو `driver`. التطبيق ملف تنفيذي واحد للدورين،
+  /// ويُكتب هذا المفتاح عند تسجيل الدخول في كلٍّ منهما.
+  static String get sessionRole {
+    try {
+      final r = myServices.sharedPreferences.getString('userRole');
+      if (r == 'driver') return 'driver';
+    } catch (_) {}
+    return 'customer';
+  }
+
+  /// قاعدة مسارات الدعم حسب دور الجلسة — نفس الأسماء تحت `/customer/` و`/driver/`.
+  static String get _supportBase =>
+      sessionRole == 'driver' ? driverServer : customerServer;
+
+  /// جلب أو إنشاء محادثتي + أحدث صفحة رسائل. لا يُمرَّر معرّف المحادثة — يُشتق من التوكن.
+  static String get supportConversation => "${_supportBase}support/conversation";
+  static String get supportMessages => "${_supportBase}support/messages";
+  static String get supportSendMessage => "${_supportBase}support/messages";
+  static String get supportMarkRead => "${_supportBase}support/read";
+  static String get supportUnreadCount => "${_supportBase}support/unread-count";
+  static String get supportAttachments => "${_supportBase}support/attachments";
 
   /// الخصوصية والشروط (صفحة HTML على نفس نطاق الـ API)
   static String get privacyPolicyUrl => '$hostNoSlash/privacy-terms.html';

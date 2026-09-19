@@ -5,7 +5,7 @@ import 'package:customer/core/constant/Themes/lightThem.dart';
 import 'package:customer/core/constant/assets/icons.dart';
 import 'package:customer/core/constant/assets/images.dart';
 import 'package:customer/view/widget/widgetApp/ButtonAppWidget.dart';
-import 'package:customer/view/widget/widgetApp/ReverseVerifyBox.dart';
+import 'package:customer/view/widget/widgetApp/OtpCodeBox.dart';
 import 'package:customer/view/widget/widgetApp/textBox.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -103,7 +103,7 @@ class _PhoneStep extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              'أدخل رقم هاتفك المسجّل لإرسال رمز التحقق عبر واتساب.',
+              'أدخل رقم هاتفك المسجّل وسنرسل رمز التحقق إلى واتساب.',
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.titleLarge!.copyWith(
                     fontSize: 16,
@@ -186,7 +186,7 @@ class _ResetStep extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              'رقمك: ${controller.phoneController.text}',
+              'أدخل الرمز المرسل إلى واتساب رقمك ثم كلمة المرور الجديدة.',
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                     color: subtitleColor,
@@ -196,21 +196,15 @@ class _ResetStep extends StatelessWidget {
           ),
 
           const SizedBox(height: 20),
-          // التحقق العكسي (رمز + زر واتساب + حالة لحظية/يدوية)
-          ReverseVerifyBox(controller: controller),
-
-          const SizedBox(height: 8),
-          // إعادة بدء جلسة تحقّق جديدة
-          Center(
-            child: TextButton(
-              onPressed: () => controller.restartReverse(),
-              child: Text(
-                'إعادة إرسال رمز جديد',
-                style: TextStyle(color: brown, fontWeight: FontWeight.w600),
-              ),
-            ),
+          // المربعات الستّة + لصق + عدّاد/زر إعادة الإرسال
+          OtpCodeBox(
+            controller: controller,
+            phone: controller.phoneController.text,
+            onCompleted: (_) {},
+            accent: brown,
           ),
-          const SizedBox(height: 12),
+
+          const SizedBox(height: 16),
           Align(
             alignment: Alignment.centerRight,
             child: Text(
@@ -252,7 +246,7 @@ class _ResetStep extends StatelessWidget {
           Obx(
             () => ButtonAppWidget(
               statusRequest: controller.statusRequest.value,
-              lable: 'تعيين كلمة المرور والدخول',
+              lable: 'تعيين كلمة المرور',
               onPressed: () => controller.submitNewPassword(),
             ),
           ),

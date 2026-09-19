@@ -1,7 +1,7 @@
 // ignore_for_file: avoid_print
 
-import 'dart:async';
 import 'package:customer/core/class/crud.dart';
+import 'package:customer/core/class/otp_verify_mixin.dart';
 import 'package:customer/core/class/statusRequest.dart';
 import 'package:customer/core/functions/handlingData.dart';
 import 'package:customer/core/functions/response_map.dart';
@@ -9,18 +9,15 @@ import 'package:customer/core/functions/snackbar.dart';
 import 'package:customer/core/services/services.dart';
 import 'package:customer/model/LoginModel.dart';
 import 'package:customer/model/SignUpModel.dart';
+import 'package:customer/view/screen/RegistrationSuccessScreen.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:customer/core/class/otp_opt_in.dart';
-import 'package:customer/core/class/reverse_verify_mixin.dart';
-import 'package:customer/view/screen/RegistrationSuccessScreen.dart';
-import 'package:otp_text_field/otp_field.dart';
 
-class SignUpControler extends GetxController with ReverseVerifyMixin {
+class SignUpControler extends GetxController with OtpVerifyMixin {
   SignUpModel model = SignUpModel(Get.find());
   LoginModel loginModel = LoginModel(Get.find());
 
@@ -39,8 +36,7 @@ class SignUpControler extends GetxController with ReverseVerifyMixin {
 
   @override
   void onClose() {
-    disposeReverse();
-    timer?.cancel();
+    disposeOtp();
     super.onClose();
   }
 
@@ -203,24 +199,26 @@ class SignUpControler extends GetxController with ReverseVerifyMixin {
       return;
     }
 
-    // 9. كل التحقق نجح — بدء التحقق العكسي (المستخدم يُرسل الرمز لرقم الخدمة)
+    // 9. كل التحقق نجح — إرسال رمز التحقق إلى واتساب الرقم
     buttonStatusRequest.value = StatusRequest.loading;
-    final started = await startReverse(phoneController.text.trim(), 'register');
+    final result = await sendOtp(phone, 'register');
     buttonStatusRequest.value = StatusRequest.success;
 
-    if (started) {
-      Get.toNamed("/Otp"); // شاشة التحقق العكسي (تعرض الرمز + زر واتساب)
-    } else {
-      AppSnackBar.error(
-        reverseError.value.isEmpty ? "تعذّر بدء التحقق" : reverseError.value,
-      );
+    switch (result) {
+      case OtpSendResult.sent:
+        Get.toNamed("/Otp");
+        break;
+      case OtpSendResult.cooldown:
+        // مهلة من الخادم — رمز سابق قد يكون صالحاً، ننتقل مع عرض العدّاد
+        AppSnackBar.warning(otpError.value);
+        Get.toNamed("/Otp");
+        break;
+      case OtpSendResult.failed:
+        AppSnackBar.error(
+          otpError.value.isEmpty ? "تعذّر إرسال رمز التحقق" : otpError.value,
+        );
+        break;
     }
-  }
-
-  /// يُستدعى تلقائياً فور نجاح التحقق العكسي → إنشاء الحساب مباشرةً.
-  @override
-  void onReverseVerified() {
-    submitRegistration();
   }
 
   final RxBool submitting = false.obs;
@@ -233,13 +231,23 @@ class SignUpControler extends GetxController with ReverseVerifyMixin {
     await login();
   }
 
-  /// إنشاء الحساب بعد اكتمال التحقق العكسي (يمرّر reverseRef بدل otp).
-  Future<void> submitRegistration() async {
-    if (submitting.value) return;
-    if (!reverseVerified.value) {
-      AppSnackBar.warning('لم يكتمل التحقق بعد');
+  /// يتحقق من الرمز وينشئ الحساب — الرمز يُتحقَّق ويُستهلك في الخادم مع createCustomer.
+  ///
+  /// يُستدعى من زر «تأكيد وإنشاء الحساب» ومن اكتمال المربعات (كتابةً أو لصقاً)؛
+  /// الحارس يمنع الاستدعاء المزدوج لأن الرمز أحادي الاستخدام.
+  Future<void> verifyCode() async {
+    if (submitting.value || statusRequest.value == StatusRequest.loading) {
       return;
     }
+    if (!otpIsComplete) {
+      AppSnackBar.warning('أدخل رمز التحقق المكوّن من $kOtpLength أرقام');
+      return;
+    }
+    if (rEpasswordController.text != passwordController.text) {
+      AppSnackBar.error("كلمة المرور غير متطابقة");
+      return;
+    }
+
     submitting.value = true;
     statusRequest.value = StatusRequest.loading;
     try {
@@ -252,13 +260,14 @@ class SignUpControler extends GetxController with ReverseVerifyMixin {
         storeLocation: locationController.text,
         type: customerType['value'],
         password: passwordController.text,
-        reverseRef: reverseRef,
+        otp: otpCode.value,
         document: imageElmint.value,
       );
 
       if (handlingData(response) == StatusRequest.success) {
         // أوقف التحميل واعرض صفحة النجاح؛ الدخول يتم عند ضغط «موافق».
         statusRequest.value = StatusRequest.success;
+        disposeOtp();
         successMessage.value =
             response['message']?.toString().trim().isNotEmpty == true
             ? response['message'].toString()
@@ -266,104 +275,15 @@ class SignUpControler extends GetxController with ReverseVerifyMixin {
         Get.to(() => RegistrationSuccessScreen());
       } else {
         statusRequest.value = StatusRequest.success;
+        // لا تعرض رسالة فارغة أبداً — يظهر السبب الحقيقي (رمز خاطئ / لا إنترنت / خطأ خادم)
         AppSnackBar.error(
           tryResponseMessage(response) ??
-              'تعذّر إكمال التسجيل، تأكد من اتصالك بالإنترنت وحاول مجدداً.',
+              'تعذّر إكمال التسجيل — تأكد من رمز التحقق واتصالك بالإنترنت ثم حاول مجدداً.',
         );
+        clearOtpField();
       }
     } finally {
       submitting.value = false;
-    }
-  }
-
-  //=========================otp=========================
-  var secondsRemaining = 30.obs;
-  var enableResend = false.obs;
-  Timer? timer;
-  var otpCode = ''.obs;
-  final OtpFieldController otpFieldController = OtpFieldController();
-
-  /// بيانات الاشتراك بخدمة واتساب (opt-in) — من استجابة طلب الرمز.
-  final Rx<OtpOptInInfo> otpOptIn = Rx<OtpOptInInfo>(const OtpOptInInfo());
-
-  /// يفتح واتساب على رقم الخدمة مع كلمة الاشتراك معبأة — لاستلام الرمز.
-  Future<void> openWhatsAppForCode() async {
-    final ok = await otpOptIn.value.openWhatsApp();
-    if (!ok) {
-      AppSnackBar.error("تعذر فتح واتساب، تأكد من تثبيته على جهازك");
-    }
-  }
-  void startTimer() {
-    secondsRemaining.value = 30;
-    enableResend.value = false;
-    timer?.cancel();
-
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (secondsRemaining.value > 0) {
-        secondsRemaining.value--;
-      } else {
-        enableResend.value = true;
-        t.cancel();
-      }
-    });
-  }
-
-  void resendCode() async {
-    if (enableResend.value) {
-      final response = await model.createOtp(phoneController.text);
-      if (handlingData(response) == StatusRequest.success) {
-        otpOptIn.value = OtpOptInInfo.fromResponse(response);
-      }
-      startTimer();
-      clearOtpField();
-      Get.snackbar("إعادة الإرسال", "تم إرسال الكود مجددًا ✅");
-    }
-  }
-
-  //تفريغ حقول  otp
-  void clearOtpField() {
-    try {
-      otpFieldController.clear();
-    } catch (_) {}
-    otpCode.value = '';
-  }
-
-  void verifyCode() async {
-    // حارس ضد الاستدعاء المزدوج: حقل الـ OTP (onCompleted) + زر «تحقق» قد
-    // يُطلقان verifyCode مرتين، والمزوّد يستهلك الرمز عند أول تحقّق — فتفشل
-    // المحاولة الثانية بـ «رمز غير صالح» ولا يُنشأ الحساب.
-    if (statusRequest.value == StatusRequest.loading) return;
-
-    if (rEpasswordController.text != passwordController.text) {
-      AppSnackBar.error("كلمة المرور غير متطابقة");
-      return;
-    }
-    statusRequest.value = StatusRequest.loading;
-
-    var response = await model.createCustomer(
-      customerName: customerNameController.text,
-      storeName: storeNameController.text,
-      province: province['value'],
-      phone: phoneController.text,
-      address: addressController.text,
-      storeLocation: locationController.text,
-      type: customerType['value'],
-      password: passwordController.text,
-      otp: otpCode.value,
-      document: imageElmint.value,
-    );
-
-    if (handlingData(response) == StatusRequest.success) {
-      AppSnackBar.success(response['message'] ?? 'تم إنشاء الحساب بنجاح');
-      await login();
-    } else {
-      statusRequest.value = StatusRequest.success;
-      // لا تعرض رسالة فارغة أبداً — يظهر السبب الحقيقي (رمز خاطئ / لا إنترنت / خطأ خادم)
-      AppSnackBar.error(
-        tryResponseMessage(response) ??
-            'تعذّر إكمال التسجيل — تأكد من رمز التحقق واتصالك بالإنترنت ثم حاول مجدداً.',
-      );
-      clearOtpField();
     }
   }
 

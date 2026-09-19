@@ -10,6 +10,7 @@ import 'package:customer/view/widget/ProductsDetailWidget/NamePriceWidget.dart';
 import 'package:customer/view/widget/ProductsDetailWidget/ProductImages.dart';
 import 'package:customer/view/widget/ProductsDetailWidget/packingsWidget.dart';
 import 'package:customer/view/widget/widgetApp/ButtonAppWidget.dart';
+import 'package:customer/view/widget/widgetApp/QuantityInputDialog.dart';
 import 'package:customer/view/widget/widgetApp/ScaffoldWidget.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -111,14 +112,28 @@ class ProductsDetailSecrren extends StatelessWidget {
                           onPressed: () => controller.cartEdt(true),
                           icon: Icon(Icons.add, size: 24),
                         ),
-                        Text(
-                          controller.count.value.toString(),
-                          style: Theme.of(context).textTheme.titleLarge!
-                              .copyWith(
-                                color: Color(0xff231F1E),
-                                fontSize: 24,
-                                fontWeight: MyFontWeight.medium,
-                              ),
+                        // النقر على الرقم يفتح مربع كتابة الكمية
+                        InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () async {
+                            final v = await showQuantityInputDialog(
+                              context,
+                              current: controller.count.value,
+                            );
+                            if (v != null) await controller.setCount(v);
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6),
+                            child: Text(
+                              controller.count.value.toString(),
+                              style: Theme.of(context).textTheme.titleLarge!
+                                  .copyWith(
+                                    color: Color(0xff231F1E),
+                                    fontSize: 24,
+                                    fontWeight: MyFontWeight.medium,
+                                  ),
+                            ),
+                          ),
                         ),
                         IconButton(
                           onPressed: () => controller.cartEdt(false),

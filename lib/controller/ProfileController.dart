@@ -6,6 +6,7 @@ import 'package:customer/core/functions/response_map.dart';
 import 'package:customer/core/functions/snackbar.dart';
 import 'package:customer/core/functions/validinput.dart';
 import 'package:customer/core/services/services.dart';
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:customer/model/LoginModel.dart';
 import 'package:customer/model/ProfileModel.dart';
 import 'package:flutter/material.dart';
@@ -117,6 +118,11 @@ class ProfileController extends GetxController {
   /// لا نمنع المستخدم من الخروج لو فشل الطلب (مثلاً انتهاء التوكن أو الشبكة).
   logOut() async {
     statusRequest.value = StatusRequest.loading;
+
+    // قبل مسح التوكن — وإلا حاولت الخدمة تجديد توكن محذوف
+    if (Get.isRegistered<SupportChatService>()) {
+      Get.find<SupportChatService>().stop();
+    }
 
     final fcmToken = myServices.sharedPreferences.getString("tokinFCM");
     if (fcmToken != null && fcmToken.isNotEmpty) {

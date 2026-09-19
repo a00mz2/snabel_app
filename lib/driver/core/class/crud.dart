@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dartz/dartz.dart';
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:customer/driver/core/class/statusRequest.dart';
 import 'package:customer/driver/linkApi.dart';
 import 'package:customer/driver/core/functions/checkInternetConnection.dart';
@@ -66,17 +67,28 @@ class DriverCrud {
       if ((response.statusCode == 401 || response.statusCode == 403) &&
           !isRetry &&
           !isPublic) {
-        if (await _refreshToken()) {
+        final result = await _refreshTokenWithLock();
+        if (result == _RefreshResult.success) {
           return await request(
             method: method,
             url: url,
             data: data,
             files: files,
             isRetry: true,
+            isPublic: isPublic,
+            methodMultipart: methodMultipart,
           );
-        } else {
+        } else if (result == _RefreshResult.authRejected) {
+          // رفض نهائي (refresh token ملغى/منتهٍ) → إنهاء الجلسة فعلاً.
           _endSession();
           return Right({...decoded, "statusRequest": StatusRequest.failure});
+        } else {
+          // فشل عابر (شبكة/مهلة/خطأ خادم 5xx) → لا نُسجّل خروجاً ونُبقي الجلسة.
+          return Right({
+            ...decoded,
+            "statusRequest": StatusRequest.failure,
+            "transient": true,
+          });
         }
       }
 
@@ -112,7 +124,7 @@ class DriverCrud {
     }
 
     request.headers.addAll(headers);
-    return await request.send();
+    return await request.send().timeout(const Duration(seconds: 30));
   }
 
   Future<http.StreamedResponse> _sendMultipart(
@@ -148,7 +160,7 @@ class DriverCrud {
     final headersSafe = Map<String, String>.from(headers)
       ..removeWhere((k, _) => k.toLowerCase() == 'content-type');
     request.headers.addAll(headersSafe);
-    return await request.send();
+    return await request.send().timeout(const Duration(seconds: 60));
   }
 
   Future<Uint8List> _compressImage(Uint8List data) async {
@@ -161,25 +173,44 @@ class DriverCrud {
     }
   }
 
-  Future<bool> _refreshToken() async {
-    try {
-      final refreshToken = myServices.sharedPreferences.getString(
-        "refreshToken",
-      );
-      if (refreshToken == null) return false;
+  /// قفل تجديد مشترك: عند وصول عدّة طلبات لـ 401 في آنٍ واحد (شائع عند فتح
+  /// الشاشة الرئيسية) نُجري تجديداً واحداً فقط ويشترك الجميع بنتيجته. بدون هذا،
+  /// كل طلب يُجدّد بالتوكن القديم، وبما أن الخادم يُدوّر التوكن (يحذف القديم)،
+  /// تفشل التجديدات المتزامنة الأخرى → تسجيل خروج خاطئ.
+  static Future<_RefreshResult>? _refreshInFlight;
 
-      final res = await http.post(
-        Uri.parse(DriverApplink.driverRefreshToken),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"refreshToken": refreshToken}),
-      );
+  Future<_RefreshResult> _refreshTokenWithLock() {
+    final existing = _refreshInFlight;
+    if (existing != null) return existing;
+    final future = _refreshToken().whenComplete(() {
+      _refreshInFlight = null;
+    });
+    _refreshInFlight = future;
+    return future;
+  }
+
+  /// يُميّز بين رفض المصادقة النهائي (توكن ملغى/منتهٍ → خروج) والفشل العابر
+  /// (شبكة/مهلة/خطأ خادم → نُبقي الجلسة).
+  Future<_RefreshResult> _refreshToken() async {
+    final refreshToken = myServices.sharedPreferences.getString("refreshToken");
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return _RefreshResult.authRejected;
+    }
+    try {
+      final res = await http
+          .post(
+            Uri.parse(DriverApplink.driverRefreshToken),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({"refreshToken": refreshToken}),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body) as Map<String, dynamic>;
-
         final access = decoded["accessToken"];
-        if (access is! String || access.isEmpty) return false;
-
+        if (access is! String || access.isEmpty) {
+          return _RefreshResult.authRejected;
+        }
         await myServices.sharedPreferences.setString("Token", access);
 
         final nextRefresh = decoded["refreshToken"];
@@ -189,22 +220,52 @@ class DriverCrud {
             nextRefresh,
           );
         }
-
-        return true;
+        return _RefreshResult.success;
       }
 
-      return false;
-    } catch (e) {
-      return false;
+      // رفض نهائي: التوكن ملغى/منتهٍ/غير صالح.
+      if (res.statusCode == 401 || res.statusCode == 403) {
+        return _RefreshResult.authRejected;
+      }
+      // 5xx أو غيره → عابر (لا نُنهي الجلسة).
+      return _RefreshResult.transient;
+    } on TimeoutException {
+      return _RefreshResult.transient;
+    } catch (_) {
+      // خطأ شبكة/تحليل → عابر.
+      return _RefreshResult.transient;
     }
   }
 
+  /// تجديد توكن السائق عند الطلب، بنفس القفل المشترك أعلاه فلا يتسابق تجديدان.
+  ///
+  /// موجودة من أجل سوكِت «تواصل مع الدعم»: فهو يحتاج توكناً طازجاً عند كل مصافحة
+  /// وإعادة اتصال، ولا يمرّ بـ`request()` فلا يبلغ مسار 401 الذي يُجدّد تلقائياً.
+  /// بدونها كان سيستدعي تجديد **الزبون** فيُخرج السائق من جلسته.
+  Future<bool> ensureFreshToken() async {
+    final result = await _refreshTokenWithLock();
+    return result == _RefreshResult.success;
+  }
+
+  /// حارس تسجيل خروج مفرد — يمنع تكرار clear()/offAllNamed عند تزامن عدّة طلبات.
+  static bool _sessionEnded = false;
+
+  /// يُستدعى بعد نجاح الدخول لإعادة تفعيل الحارس لجلسة جديدة.
+  static void resetSessionGuard() => _sessionEnded = false;
+
   void _endSession() {
+    if (_sessionEnded) return;
+    _sessionEnded = true;
+    // قبل مسح التفضيلات: وإلا بقيت خدمة الدردشة تُصافح بتوكن فارغ كل ١٥ ثانية
+    // وتحمل هوية السائق السابق إلى جلسة الجهاز التالية
+    if (Get.isRegistered<SupportChatService>()) {
+      Get.find<SupportChatService>().stop();
+    }
     myServices.sharedPreferences.clear();
     myServices.sharedPreferences.setString("router", "/");
-    if (Get.currentRoute == "/Login") {
-    } else {
-      Get.offAllNamed("/");
-    }
+    Get.offAllNamed("/");
   }
 }
+
+/// نتيجة محاولة تجديد التوكن.
+enum _RefreshResult { success, authRejected, transient }

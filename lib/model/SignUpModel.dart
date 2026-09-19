@@ -10,16 +10,8 @@ class SignUpModel {
 
   SignUpModel(this.crud);
 
-  Future<dynamic> createOtp(String phone) async {
-    var response = await crud.postData(
-      Applink.createOtp,
-      {"phone": phone, "action": "register"},
-      isRetry: false,
-      isPublicRoutes: true,
-    );
-    return response.fold((failure) => failure, (data) => data);
-  }
-
+  /// إنشاء الحساب — [otp] الرمز المرسل إلى واتساب (يُتحقَّق ويُستهلك في الخادم).
+  /// طلب الرمز نفسه عبر OtpModel.requestOtp.
   Future<dynamic> createCustomer({
     String? customerName,
     String? storeName,
@@ -27,7 +19,6 @@ class SignUpModel {
     String? phone,
     String? password,
     String? otp,
-    String? reverseRef, // مرجع التحقق العكسي (بديل الـ otp)
     String? address,
     String? storeLocation,
     String? type,
@@ -44,7 +35,6 @@ class SignUpModel {
         "phone": phone,
         "password": password,
         "otp": otp,
-        "reverseRef": reverseRef,
         "address": address,
         "storeLocation": storeLocation,
         "Type": type,

@@ -4,9 +4,12 @@ import 'dart:convert';
 import 'package:customer/controller/MainController.dart';
 import 'package:customer/controller/WalletController.dart';
 import 'package:customer/core/functions/notification_navigation.dart';
+import 'package:customer/core/services/support_chat_service.dart';
+import 'package:customer/linkApi.dart';
 import 'package:customer/firebase_options.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
@@ -49,6 +52,17 @@ class NotificationService {
     FirebaseMessaging.onMessage.listen((message) async {
       final notification = message.notification;
       final data = message.data;
+
+      // يُنفَّذ دائماً — الدفعات الصامتة (بلا notification) كانت تسقط هنا فلا تتحدث أي شارة
+      onReceiveNotification(data);
+
+      // شاشة الدردشة مفتوحة أمام المستخدم ⇒ الرسالة وصلت عبر السوكِت، لا بانر مكرر
+      if (data['type']?.toString() == 'SUPPORT_CHAT' &&
+          Get.isRegistered<SupportChatService>() &&
+          Get.find<SupportChatService>().isChatScreenOpen.value) {
+        return;
+      }
+
       if (notification == null) return;
 
       if (defaultTargetPlatform == TargetPlatform.android) {
@@ -84,8 +98,6 @@ class NotificationService {
           payload: data.isNotEmpty ? _encodeNotificationData(data) : '',
         );
       }
-
-      onReceiveNotification(data);
     });
 
     // ✅ عند الضغط على الإشعار والتطبيق بالخلفية
@@ -111,7 +123,9 @@ class NotificationService {
   //───────────────────────────────────────────────
   @pragma('vm:entry-point')
   static Future<void> _backgroundHandler(RemoteMessage message) async {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     print('📩 إشعار بالخلفية: ${message.notification?.title}');
   }
 
@@ -151,26 +165,40 @@ class NotificationService {
     print("📩 تم استلام إشعار جديد:");
     data.forEach((k, v) => print("➡️ $k : $v"));
 
-    // مثال: تحديث عداد الإشعارات في MainController
-    final MainController mainController = Get.isRegistered<MainController>()
-        ? Get.find<MainController>()
-        : Get.put(MainController());
-    mainController.getUnreadCount();
+    // ⚠️ بوابة دور قبل بناء كنترولرات الزبون: هذه الخدمة تُهيَّأ للدورين معاً
+    // (main.dart)، وفي جلسة سائق كان `Get.put(MainController())` يُنشئ كنترولر
+    // الزبون — ومُهيِّئات حقوله تُنشئ السلة والطلبات والمحفظة — فتنطلق نداءات
+    // مسارات الزبون بتوكن سائق. بقية المعالجة أدناه محايدة للدور فتستمر كما هي.
+    final isCustomerSession = Applink.sessionRole == 'customer';
 
-    final WalletController walletController =
-        Get.isRegistered<WalletController>()
-        ? Get.find<WalletController>()
-        : Get.put(WalletController());
+    if (isCustomerSession) {
+      final mainController = Get.isRegistered<MainController>()
+          ? Get.find<MainController>()
+          : Get.put(MainController());
+      mainController.getUnreadCount();
+    }
 
     final type = data['type']?.toString();
     switch (type) {
       case 'WALLET_UPDATE':
-        walletController.getTransactions();
+        if (isCustomerSession) {
+          final walletController = Get.isRegistered<WalletController>()
+              ? Get.find<WalletController>()
+              : Get.put(WalletController());
+          walletController.getTransactions();
+        }
         break;
       case 'ORDER':
       case 'ORDER_STATUS':
       case 'ORDER_STATUS_UPDATE':
+      case 'RATE_ORDER':
         // التوجيه يتم عند الضغط على الإشعار (onTapNotification)، لا نغيّر الشاشة تلقائياً هنا
+        break;
+
+      case 'SUPPORT_CHAT':
+        if (Get.isRegistered<SupportChatService>()) {
+          Get.find<SupportChatService>().onPushReceived(data);
+        }
         break;
 
       default:
@@ -187,6 +215,15 @@ class NotificationService {
   // 🟡 عند ضغط المستخدم على الإشعار
   // (سواء من النظام، الخلفية، أو بعد الإغلاق)
   //───────────────────────────────────────────────
+  /// شاشة الإشعارات الخاصة بدور الجلسة.
+  ///
+  /// ⚠️ خدمة إشعارات الزبون تُهيَّأ للدورين معاً (main.dart)، وإشعار السائق يصل إلى
+  /// هنا. دفعُه إلى `/Notifications` (شاشة الزبون) كان يُسقطه بشاشة GetX الحمراء
+  /// لأن `NotificationsController` يطلب `MainController` غير المسجَّل في جلسته —
+  /// ولو نجح لجلب إشعارات الزبون بتوكن سائق.
+  static String get _notificationsRoute =>
+      Applink.sessionRole == 'driver' ? '/driver/Notifications' : '/Notifications';
+
   static Future<void> onTapNotification(Map<String, dynamic> data) async {
     print("🖱️ تم الضغط على الإشعار:");
     data.forEach((k, v) => print("➡️ $k : $v"));
@@ -194,18 +231,26 @@ class NotificationService {
     // ننتظر قليلاً حتى يجهز GetX بالكامل
     await Future.delayed(const Duration(milliseconds: 300));
 
-    final MainController mainController = Get.isRegistered<MainController>()
-        ? Get.find<MainController>()
-        : Get.put(MainController());
-
-    mainController.getUnreadCount();
+    // بوابة الدور نفسها — راجع التعليق في onReceiveNotification
+    if (Applink.sessionRole == 'customer') {
+      final mainController = Get.isRegistered<MainController>()
+          ? Get.find<MainController>()
+          : Get.put(MainController());
+      mainController.getUnreadCount();
+    }
 
     final type = data['type']?.toString();
 
     switch (type) {
       case 'WALLET_UPDATE':
-        mainController.changePage(2);
-        Get.offAllNamed('/MainScreen', arguments: {'current': 2});
+        // إجراء خاص بالزبون: `/MainScreen` شاشة الزبون، ودفعها لسائق تُخرجه من تطبيقه
+        if (Applink.sessionRole == 'customer') {
+          final mainController = Get.isRegistered<MainController>()
+              ? Get.find<MainController>()
+              : Get.put(MainController());
+          mainController.changePage(2);
+          Get.offAllNamed('/MainScreen', arguments: {'current': 2});
+        }
         break;
 
       case 'ORDER':
@@ -214,12 +259,33 @@ class NotificationService {
         navigateToOrderFromNotificationData(data);
         break;
 
+      case 'SUPPORT_CHAT':
+        // حالة صريحة: الفرع الافتراضي يفتح تفاصيل الطلب عند وجود orderId في الحمولة
+        Get.toNamed('/SupportChat');
+        break;
+
+      case 'RATE_ORDER':
+        // دعوة لتقييم الطلب — تفاصيل الطلب هي مكان التقييم
+        navigateToOrderFromNotificationData(data);
+        break;
+
+      case 'ORDER_DELETED':
+        // الطلب حُذف من الإدارة — لا صفحة تفاصيل تُفتح؛ نعرض قائمة الإشعارات
+        Get.toNamed(_notificationsRoute);
+        break;
+
+      // [cod-collect] استلمت الإدارة مبالغ دفع عند الاستلام من السائق.
+      // خدمة إشعارات السائق لا تُهيَّأ في التطبيق، فتصل إشعاراته إلى هنا.
+      case 'DRIVER_COD_SETTLED':
+        Get.toNamed('/driver/CodCollections');
+        break;
+
       default:
         print("🔔 إشعار عام أو غير معروف");
         if (navigateToOrderFromNotificationData(data)) {
           return;
         }
-        Get.toNamed('/Notifications');
+        Get.toNamed(_notificationsRoute);
     }
   }
 }

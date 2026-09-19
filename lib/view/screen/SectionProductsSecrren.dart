@@ -7,6 +7,8 @@ import 'package:customer/view/widget/widgetApp/PaginationIndicator.dart';
 import 'package:customer/view/widget/widgetApp/ProductGridWidget.dart';
 import 'package:customer/view/widget/widgetApp/ScaffoldWidget.dart';
 import 'package:customer/view/widget/widgetApp/textBox.dart';
+import 'package:customer/view/widget/widgetApp/RatingStars.dart';
+import 'package:customer/view/widget/widgetApp/SpecialPriceBadge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:get/get.dart';
@@ -76,6 +78,8 @@ class SectionProductsSecrren extends GetView<SectionProductsController> {
               child: FadeInAnimation(
                 child: ProductGridWidget(
                   productId: product['_id'],
+                  rating: parseRating(product),
+                  isSpecialPrice: hasSpecialPrice(product),
                   inFavorites: product['isFavorite'] ?? false,
                   index: index,
                   image: Applink.productImage(

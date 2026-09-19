@@ -91,7 +91,19 @@ class ProductsDetailController extends GetxController {
     } else if (count.value > 1) {
       count.value--;
     }
+    await _syncCartQuantity();
+  }
 
+  /// تعيين الكمية مباشرةً (من مربع إدخال الكمية) — يزامن السلة إن كان المنتج مضافاً.
+  Future<void> setCount(int value) async {
+    final v = value.clamp(1, 9999);
+    if (v == count.value) return;
+    count.value = v;
+    await _syncCartQuantity();
+  }
+
+  /// مزامنة الكمية مع السلة (تُستدعى بعد أي تغيير للكمية).
+  Future<void> _syncCartQuantity() async {
     // تحديث الكمية في السلة فقط إذا كان المنتج مضافًا
     if (!isInCartFun()) return;
 

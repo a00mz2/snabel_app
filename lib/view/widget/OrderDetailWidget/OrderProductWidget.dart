@@ -3,6 +3,7 @@ import 'package:customer/core/constant/Themes/lightThem.dart';
 import 'package:customer/core/functions/formatNumber.dart';
 import 'package:customer/linkApi.dart';
 import 'package:customer/view/widget/widgetApp/app_network_image.dart';
+import 'package:customer/view/widget/widgetApp/SpecialPriceBadge.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -10,7 +11,11 @@ class OrderProductWidget extends StatelessWidget {
   final controller = Get.find<OrderDetailController>();
   final int index;
 
-  OrderProductWidget({super.key, required this.index});
+  /// ودجت اختيارية في ذيل السطر (زر التقييم مثلاً).
+  /// إضافية بحتة: ارتفاع السطر الثابت 68 يبقى كما هو.
+  final Widget? trailing;
+
+  OrderProductWidget({super.key, required this.index, this.trailing});
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +132,12 @@ class OrderProductWidget extends StatelessWidget {
                                   fontWeight: MyFontWeight.light,
                                 ),
                           ),
+                          if (hasSpecialPrice(
+                            controller.dataOrder['items'][index],
+                          )) ...[
+                            const SizedBox(width: 6),
+                            const SpecialPriceBadge(compact: true),
+                          ],
                         ],
                       ),
                     ],
@@ -134,6 +145,7 @@ class OrderProductWidget extends StatelessWidget {
                 ],
               ),
             ),
+            if (trailing != null) trailing!,
           ],
         ),
       ),

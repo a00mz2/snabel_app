@@ -1,5 +1,6 @@
 // ignore_for_file: file_names
 
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:customer/driver/core/services/services.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -10,7 +11,12 @@ class DriverSplashController extends GetxController {
     super.onInit();
     Future.delayed(const Duration(seconds: 3), () {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      Get.offAllNamed(_resolveNextRoute());
+      final next = _resolveNextRoute();
+      // استئناف بجلسة قائمة ⇒ نصل سوكِت الدعم لتكون الشارة صحيحة من أول شاشة
+      if (next != '/' && Get.isRegistered<SupportChatService>()) {
+        Get.find<SupportChatService>().start();
+      }
+      Get.offAllNamed(next);
     });
   }
 

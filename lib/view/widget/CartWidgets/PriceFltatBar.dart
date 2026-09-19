@@ -90,7 +90,9 @@ class PriceFltatBar extends StatelessWidget {
                 ),
               ),
               Text(
-                "${formatNumber(controller.calculateTotalCartPrice().toInt())}  د.ع",
+                // [round-250] صفحة الإرسال: الإجمالي المقرَّب شامل التوصيل (ما سيُخصم فعلاً)؛
+                //             تبويب السلة: مجموع الأصناف بلا تقريب.
+                "${formatNumber(showDeliveryFee ? controller.finalTotal : controller.cartSubtotal)}  د.ع",
 
                 style: Theme.of(context).textTheme.titleLarge!.copyWith(
                   color: Color(0xff231F1E),

@@ -23,11 +23,23 @@ class DriverApplink {
   static const String removeDriverToken =
       "$apiV1Prefix/driver/removeDriverToken";
   static const String updateStatusOrder = "$apiV1Prefix/driver/updateStatusOrder";
+  /// تعديل محتوى الطلب قبل التسليم (تقليل كميات / حذف أصناف) → «واصل جزئي»
+  static const String updateOrderContent =
+      "$apiV1Prefix/driver/updateOrderContent";
+  /// تسليم الطلب مع صورة تأكيد (multipart: `orderId` + ملف `proof`)
+  static const String deliverOrder = "$apiV1Prefix/driver/deliverOrder";
+  /// تأكيد استلام المبلغ النقدي من الزبون عند الاستلام (الدفع عند الاستلام)
+  static const String confirmOrderCashCollection =
+      "$apiV1Prefix/driver/confirmOrderCashCollection";
   static const String driverRefreshToken = "$apiV1Prefix/driver/DriverRefreshToken";
 
   /// تحصيل/تسديد عبر السائق — `DriverSettlement/driverSettlementDriver.routes.js`
   static const String myDriverMediatedSettlements =
       "$apiV1Prefix/driver/myDriverMediatedSettlements";
+
+  /// [cod-collect] مبالغ الدفع عند الاستلام: ما في ذمة السائق وما استُلم منه.
+  static const String myCodCollections =
+      "$apiV1Prefix/driver/myCodCollections";
   static const String approveDriverMediatedSettlement =
       "$apiV1Prefix/driver/approveDriverMediatedSettlement";
   static const String confirmDriverMediatedSettlement =

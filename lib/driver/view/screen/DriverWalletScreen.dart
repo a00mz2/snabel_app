@@ -26,6 +26,52 @@ class DriverWalletScreen extends GetView<DriverWalletController> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _balanceCard(context),
+          // [cod-collect] شاشة مستقلة لمبالغ الدفع عند الاستلام
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => Get.toNamed('/driver/CodCollections'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD97706).withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFD97706).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.payments_outlined,
+                      size: 20,
+                      color: Color(0xFFD97706),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'مبالغ الطلبات النقدية (في ذمتي / تم التسديد)',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: MyFontWeight.medium,
+                          color: const Color(0xff4A423D),
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_left,
+                      size: 20,
+                      color: Color(0xff8C827B),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text(

@@ -11,10 +11,18 @@ class ListEmtyWidget extends StatelessWidget {
     required this.statusRequest,
     required this.statusCode,
     this.onRefresh,
+    this.emptyChild,
   });
   final Rx<StatusRequest> statusRequest;
   final RxInt statusCode;
   final Future<void> Function()? onRefresh;
+
+  /// محتوى مخصص لحالة [StatusRequest.empty] (لا بيانات — ليس خطأ خادم).
+  /// عند تمريره لا يُعرض زر «اعد المحاولة»؛ الشاشة تقرّر الإجراء المناسب.
+  final Widget? emptyChild;
+
+  bool get _showsEmptyChild =>
+      statusRequest.value == StatusRequest.empty && emptyChild != null;
 
   @override
   Widget build(BuildContext context) {
@@ -106,6 +114,8 @@ class ListEmtyWidget extends StatelessWidget {
                       ],
                     ),
                   )
+                : _showsEmptyChild
+                ? emptyChild!
                 : Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -134,7 +144,8 @@ class ListEmtyWidget extends StatelessWidget {
                   ),
           ),
           statusRequest.value != StatusRequest.loading &&
-                  statusRequest.value != StatusRequest.success
+                  statusRequest.value != StatusRequest.success &&
+                  !_showsEmptyChild
               ? TextButton(
                   onPressed: onRefresh,
                   child: Row(

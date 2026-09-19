@@ -49,18 +49,39 @@ class CartModel {
     return response.fold((failure) => failure, (data) => data);
   }
 
-  Future<dynamic> createOrderFromCart(deliveryPeriodId, deliveryDate) async {
+  /// [note]: ملاحظة الزبون على الطلب (اختيارية، ≤ 500 حرف).
+  /// [codMode]: `excess` أو `full` — يُرسل فقط بعد أن يختار الزبون الدفع نقداً
+  /// عند تجاوز الحد الائتماني (الخادم يعيد 400 `CREDIT_LIMIT_EXCEEDED` بدونه).
+  Future<dynamic> createOrderFromCart(
+    deliveryPeriodId,
+    deliveryDate, {
+    String? note,
+    String? codMode,
+    String? paymentMethod,
+  }) async {
     var response = await crud.postData(Applink.createOrderFromCart, {
       'deliveryPeriodId': deliveryPeriodId,
       'deliveryDate': deliveryDate,
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      if (codMode != null) 'codMode': codMode,
+      // [pay-method] cash = لا يُخصم من المحفظة ولا يخضع للحد المالي
+      if (paymentMethod != null && paymentMethod.isNotEmpty)
+        'paymentMethod': paymentMethod,
     });
     return response.fold((failure) => failure, (data) => data);
   }
 
-  Future<dynamic> createPinnedOrder(deliveryPeriodId, daysOfWeek) async {
+  Future<dynamic> createPinnedOrder(
+    deliveryPeriodId,
+    daysOfWeek, {
+    String? paymentMethod,
+  }) async {
     var response = await crud.postData(Applink.createPinnedOrder, {
       "deliveryPeriodId": deliveryPeriodId,
       "repeat": {"type": "custom", "daysOfWeek": daysOfWeek},
+      // [pay-method] طريقة ثابتة لكل طلب يولّده هذا القالب يومياً
+      if (paymentMethod != null && paymentMethod.isNotEmpty)
+        "paymentMethod": paymentMethod,
     });
     return response.fold((failure) => failure, (data) => data);
   }

@@ -25,9 +25,10 @@ class ProfileModel {
     String secondaryPhone, {
     Uint8List? imageElmint,
   }) async {
+    // ⚠️ بلا isRetry: تمريرها على النداء **الأول** يُقنع طبقة HTTP أن هذه إعادة محاولة
+    // بعد تجديد، فلا تُجدِّد التوكن عند 401 ويموت الحفظ بعد ١٥ دقيقة خمول.
     var response = await crud.postDataWithFiles(
       Applink.updateCustomer,
-      isRetry: true,
       {
         "customerName": name,
         "secondaryPhone": secondaryPhone,

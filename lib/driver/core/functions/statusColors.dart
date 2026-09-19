@@ -14,6 +14,8 @@ Color statusOrderColors(status) {
       return Color(0xffE9B824);
     case "تم التسليم":
       return Color(0xff008000);
+    case "واصل جزئي":
+      return Color(0xff0E9F6E);
     case "مرفوض":
       return Colors.red;
     default:
@@ -37,6 +39,8 @@ String statusName(dynamic status) {
       return 'قيد التوصيل';
     case 'تم التسليم':
       return 'واصل';
+    case 'واصل جزئي':
+      return 'واصل جزئي';
     case 'مرفوض':
       return 'مرفوض';
     default:

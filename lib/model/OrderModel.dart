@@ -19,4 +19,41 @@ class OrderModel {
     });
     return response.fold((failure) => failure, (data) => data);
   }
+
+  /// تقييم منتج داخل طلب مُسلَّم (إرسال أو تعديل — الخادم يميّز بنفسه).
+  Future<dynamic> rateProduct({
+    required String orderId,
+    required String productId,
+    required int stars,
+    String comment = '',
+  }) async {
+    var response = await crud.postData(Applink.rateOrderProduct, {
+      'orderId': orderId,
+      'productId': productId,
+      'stars': stars,
+      if (comment.trim().isNotEmpty) 'comment': comment.trim(),
+    });
+    return response.fold((failure) => failure, (data) => data);
+  }
+
+  /// تقييم سائق الطلب بعد التسليم.
+  Future<dynamic> rateDriver({
+    required String orderId,
+    required int stars,
+    String comment = '',
+  }) async {
+    var response = await crud.postData(Applink.rateOrderDriver, {
+      'orderId': orderId,
+      'stars': stars,
+      if (comment.trim().isNotEmpty) 'comment': comment.trim(),
+    });
+    return response.fold((failure) => failure, (data) => data);
+  }
+
+  /// تعديل محتوى الطلب وهو «جديد» — POST customer/updateOrderContent.
+  /// body: { orderId, expectedUpdatedAt?, changes: { items: [...], additions: [...] } }
+  Future<dynamic> updateOrderContent(Map<String, dynamic> body) async {
+    var response = await crud.postData(Applink.updateOrderContent, body);
+    return response.fold((failure) => failure, (data) => data);
+  }
 }

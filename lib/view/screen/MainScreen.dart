@@ -1,5 +1,6 @@
 import 'package:customer/controller/MainController.dart';
 import 'package:customer/core/constant/assets/icons.dart';
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:customer/view/screen/CartScreen.dart';
 import 'package:customer/view/screen/HomeScreen.dart';
 import 'package:customer/view/screen/OrdersScreen.dart';
@@ -180,7 +181,92 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           ),
+          // زر «تواصل مع الدعم» العائم — هنا لا داخل التبويبات عمداً:
+          //  * ScaffoldWidget يستبدل جسم كل تبويب بشاشة الحالة عند أي حالة غير success،
+          //    فزرّ داخل تبويب يختفي أثناء التحميل. هنا يبقى فوق التبويبات الخمسة.
+          //  * إلى الجانب لا المنتصف: زر المحفظة يشغل منتصف الشريط ويرتفع فوقه.
+          //  * متاح لكل تاجر بلا تفعيل من الإدارة.
+          if (Get.isRegistered<SupportChatService>())
+            Obx(
+              () => PositionedDirectional(
+                end: 16,
+                bottom: contentBottomPadding + 12,
+                child: _SupportChatFab(
+                  unread: Get.find<SupportChatService>().unreadTotal.value,
+                ),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+/// دائرة برتقالية بلون زر المحفظة، مع شارة حمراء بعدد غير المقروء في زاويتها.
+class _SupportChatFab extends StatelessWidget {
+  const _SupportChatFab({required this.unread});
+
+  final int unread;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'تواصل مع الدعم',
+      child: SizedBox(
+        width: 62,
+        height: 62,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: Material(
+                color: Colors.orange,
+                shape: const CircleBorder(),
+                elevation: 6,
+                shadowColor: Colors.black.withValues(alpha: 0.25),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => Get.toNamed('/SupportChat'),
+                  child: const Center(
+                    child: Icon(
+                      Icons.support_agent_rounded,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (unread > 0)
+              PositionedDirectional(
+                top: -4,
+                start: -4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  constraints: const BoxConstraints(minWidth: 22),
+                  decoration: BoxDecoration(
+                    color: const Color(0xffF31616),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

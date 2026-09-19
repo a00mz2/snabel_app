@@ -301,6 +301,13 @@ class PinnedOrderEditController extends GetxController {
     lines.refresh();
   }
 
+  /// تعيين كمية مطلقة للبند (من مربع إدخال الكمية).
+  void setQty(int index, int qty) {
+    if (index < 0 || index >= lines.length) return;
+    lines[index].quantity = qty.clamp(1, 9999);
+    lines.refresh();
+  }
+
   void removeLine(int index) {
     lines.removeAt(index);
   }

@@ -10,6 +10,8 @@ import 'package:customer/view/widget/HomeWidget/WaltCardWidget.dart';
 import 'package:customer/view/widget/widgetApp/ProductWidget.dart';
 import 'package:customer/view/widget/widgetApp/ScaffoldWidget.dart';
 import 'package:customer/view/widget/widgetApp/TitleBarWedget.dart';
+import 'package:customer/view/widget/widgetApp/RatingStars.dart';
+import 'package:customer/view/widget/widgetApp/SpecialPriceBadge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:get/get.dart';
@@ -93,6 +95,12 @@ class HomeScreen extends StatelessWidget {
                               itemBuilder: (context, index) => ProductWidget(
                                 productId: controller
                                     .listTopProducts[index]['_id'],
+                                rating: parseRating(
+                                  controller.listTopProducts[index],
+                                ),
+                                isSpecialPrice: hasSpecialPrice(
+                                  controller.listTopProducts[index],
+                                ),
                                 inFavorites: controller
                                     .listTopProducts[index]['inFavorites'],
                                 index: index,
@@ -138,6 +146,12 @@ class HomeScreen extends StatelessWidget {
                               itemBuilder: (context, index) => ProductWidget(
                                 productId: controller
                                     .listallProducts[index]['_id'],
+                                rating: parseRating(
+                                  controller.listallProducts[index],
+                                ),
+                                isSpecialPrice: hasSpecialPrice(
+                                  controller.listallProducts[index],
+                                ),
                                 inFavorites: controller
                                     .listallProducts[index]['inFavorites'],
                                 index: index,

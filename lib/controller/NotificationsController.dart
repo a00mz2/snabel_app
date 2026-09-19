@@ -94,6 +94,8 @@ class NotificationsController extends GetxController {
         }
       } catch (_) {}
     }
+    // إشعار حذف الطلب: لا طلب يُفتح (حُذف من الإدارة) — يبقى المستخدم في القائمة
+    if (dataMap?['type']?.toString() == 'ORDER_DELETED') return;
     final notificationDocId = item['_id']?.toString();
     navigateToOrderFromNotificationData(
       dataMap,

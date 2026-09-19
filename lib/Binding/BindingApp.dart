@@ -17,8 +17,10 @@ import 'package:customer/controller/WalletController.dart';
 import 'package:customer/controller/orderDetailController.dart';
 import 'package:customer/controller/PinnedOrderDetailController.dart';
 import 'package:customer/controller/PinnedOrderEditController.dart';
+import 'package:customer/controller/OrderEditController.dart';
 import 'package:customer/controller/PinnedOrdersListController.dart';
 import 'package:customer/controller/ContactUsController.dart';
+import 'package:customer/controller/SupportChatController.dart';
 import 'package:customer/controller/ForgotPasswordController.dart';
 import 'package:get/get.dart';
 
@@ -138,6 +140,28 @@ class PinnedOrderEditBinding extends Bindings {
     final args = Get.arguments;
     final id = args is Map ? args['pinnedOrderId']?.toString() ?? '' : '';
     Get.lazyPut(() => PinnedOrderEditController(id), fenix: true);
+  }
+}
+
+/// تعديل محتوى طلب «جديد» — يستقبل خريطة الطلب في Get.arguments['order'].
+class OrderEditBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut(() {
+      final args = Get.arguments;
+      final raw = args is Map ? args['order'] : null;
+      final order = raw is Map
+          ? Map<String, dynamic>.from(raw)
+          : <String, dynamic>{};
+      return OrderEditController(order);
+    }, fenix: true);
+  }
+}
+
+class SupportChatBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut(() => SupportChatController(), fenix: true);
   }
 }
 

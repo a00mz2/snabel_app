@@ -16,7 +16,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   final String? namePage;
   final Widget? iconPage;
 
-  AppBarWidget({
+  const AppBarWidget({
     super.key,
     this.isSub = false,
     this.hideNotifications = false,
@@ -24,7 +24,35 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     this.namePage = "",
   });
 
-  final MainController mainController = Get.find<MainController>();
+  /// ⚠️ بحث كسول محروس، لا حقل نهائي.
+  ///
+  /// هذا الشريط يُستعمل في شاشات مشتركة يفتحها **السائق** أيضاً («تواصل مع الدعم»)،
+  /// و`MainController` مسجَّل في `MainBinding` على مسار الزبون `/MainScreen` وحده.
+  /// المُهيِّئ النهائي كان يُنفَّذ لحظة بناء الودجت — قبل تجميع `AppBar` أصلاً — فيُسقط
+  /// جلسة السائق بشاشة GetX الحمراء، حتى حين لا يُعرض جرس الإشعارات إطلاقاً
+  /// (`isSub: true` يُخفيه، وهو بالضبط ما تمرّره شاشة الدردشة).
+  MainController? get _main =>
+      Get.isRegistered<MainController>() ? Get.find<MainController>() : null;
+
+  /// أيقونة الجرس: تتبدّل مع عدّاد غير المقروء حين يوجد الكنترولر.
+  ///
+  /// ⚠️ بلا كنترولر نُعيد صورة ساكنة **خارج** `Obx`: لفّ `Obx` حول بناء لا يقرأ أي
+  /// متغيّر تفاعلي يرمي «improper use of a GetX» — أي نستبدل انهياراً بانهيار.
+  Widget _notificationsIcon() {
+    final controller = _main;
+    if (controller == null) {
+      return Image.asset(AppIcons.notificationAc, width: 22, height: 22);
+    }
+    return Obx(
+      () => Image.asset(
+        controller.countNotifications.value == 0
+            ? AppIcons.notificationAc
+            : AppIcons.notification,
+        width: 22,
+        height: 22,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,17 +146,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                     width: 40,
                     height: 40,
 
-                    child: Center(
-                      child: Obx(
-                        () => Image.asset(
-                          mainController.countNotifications.value == 0
-                              ? AppIcons.notificationAc
-                              : AppIcons.notification,
-                          width: 22,
-                          height: 22,
-                        ),
-                      ),
-                    ),
+                    child: Center(child: _notificationsIcon()),
                   ),
                 ),
               ),

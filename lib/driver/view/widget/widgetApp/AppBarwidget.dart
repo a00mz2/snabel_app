@@ -17,7 +17,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   final Widget? iconPage;
   final PreferredSizeWidget? bottom;
 
-  AppBarWidget({
+  const AppBarWidget({
     super.key,
     this.isSub = false,
     this.hideNotifications = false,
@@ -26,7 +26,31 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
     this.bottom,
   });
 
-  final MainControlIer mainController = Get.find<MainControlIer>();
+  /// ⚠️ بحث كسول محروس، لا حقل نهائي — نفس علّة شريط الزبون.
+  ///
+  /// `MainControlIer` مسجَّل بـ`put` غير دائم على `/driver/MainScreen` وحده، والمُهيِّئ
+  /// النهائي يُنفَّذ لحظة بناء الودجت، فأي شاشة سائق فرعية تُفتح خارج تلك الشاشة
+  /// (إقلاع بارد من إشعار مثلاً) كانت ستسقط بشاشة GetX الحمراء.
+  MainControlIer? get _main =>
+      Get.isRegistered<MainControlIer>() ? Get.find<MainControlIer>() : null;
+
+  /// ⚠️ بلا كنترولر نُعيد صورة ساكنة **خارج** `Obx`: لفّ `Obx` حول بناء لا يقرأ أي
+  /// متغيّر تفاعلي يرمي «improper use of a GetX».
+  Widget _notificationsIcon() {
+    final controller = _main;
+    if (controller == null) {
+      return Image.asset(AppIcons.notificationAc, width: 22, height: 22);
+    }
+    return Obx(
+      () => Image.asset(
+        controller.countNotifications.value == 0
+            ? AppIcons.notificationAc
+            : AppIcons.notification,
+        width: 22,
+        height: 22,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,17 +113,7 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                     width: 40,
                     height: 40,
 
-                    child: Center(
-                      child: Obx(
-                        () => Image.asset(
-                          mainController.countNotifications.value == 0
-                              ? AppIcons.notificationAc
-                              : AppIcons.notification,
-                          width: 22,
-                          height: 22,
-                        ),
-                      ),
-                    ),
+                    child: Center(child: _notificationsIcon()),
                   ),
                 ),
               ),

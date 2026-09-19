@@ -1,15 +1,15 @@
 // ignore_for_file: file_names, avoid_print, deprecated_member_use, use_build_context_synchronously
 
+import 'package:customer/core/services/support_chat_service.dart';
+import 'package:customer/driver/core/class/crud.dart';
 import 'package:customer/driver/core/class/statusRequest.dart';
 import 'package:customer/driver/core/functions/handlingData.dart';
 import 'package:customer/driver/core/functions/snackbar.dart';
 import 'package:customer/driver/core/services/services.dart';
 import 'package:customer/driver/model/LoginModel.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
 
 class DriverLoginController extends GetxController {
   LoginModel model = LoginModel(Get.find());
@@ -56,17 +56,8 @@ class DriverLoginController extends GetxController {
     phoneController.text = "";
     passwordController.text = "";
 
-    try {
-      final rt = response['refreshToken'];
-      if (rt is String && rt.isNotEmpty) {
-        final decodedToken = JwtDecoder.decode(rt);
-        if (kDebugMode) {
-          print("=========================================");
-          print(decodedToken);
-          print("=========================================");
-        }
-      }
-    } catch (_) {}
+    // إعادة تفعيل حارس الجلسة لجلسة جديدة (بعد أي خروج سابق).
+    DriverCrud.resetSessionGuard();
 
     final access = response['accessToken'];
     final refresh = response['refreshToken'];
@@ -78,6 +69,11 @@ class DriverLoginController extends GetxController {
     }
     await myServices.sharedPreferences.setString("router", "/driver/MainScreen");
     await myServices.sharedPreferences.setString("userRole", "driver");
+
+    // بعد كتابة الدور والتوكن لا قبلهما: الخدمة تقرأهما من التفضيلات عند الاتصال
+    if (Get.isRegistered<SupportChatService>()) {
+      Get.find<SupportChatService>().start();
+    }
 
     final FirebaseMessaging messaging = FirebaseMessaging.instance;
     String? token = await messaging.getToken();

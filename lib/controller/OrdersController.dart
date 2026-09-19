@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'package:customer/core/class/statusRequest.dart';
+import 'package:customer/core/functions/statusColors.dart';
 import 'package:customer/core/functions/handlingData.dart';
 import 'package:customer/model/OrderModel.dart';
 import 'package:flutter/material.dart';
@@ -57,7 +58,7 @@ class OrdersController extends GetxController {
       case 3:
         status = ['قيد التوصيل', 'مع السائق'];
       case 4:
-        status = ['تم التسليم'];
+        status = kDeliveredOrderStatuses.toList();
       case 5:
         status = ['مرفوض'];
       default:

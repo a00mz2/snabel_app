@@ -2,6 +2,7 @@
 
 import 'package:get/get.dart';
 import '../core/class/crud.dart';
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:customer/driver/core/class/crud.dart';
 
 class InitialBindings extends Bindings {
@@ -12,5 +13,7 @@ class InitialBindings extends Bindings {
     // DriverCrud الخاص بالسائق — اسم مختلف ليتجنّب تصادم GetX (الذي يبني المفتاح من اسم الـclass).
     // نسجّله مبكراً حتى تجده موديلات السائق عبر Get.find().
     Get.put(DriverCrud());
+    // دائمة: شارة «تواصل مع الدعم» يجب أن تعمل من أي تبويب، لا من شاشة الدردشة فقط
+    Get.put(SupportChatService(), permanent: true);
   }
 }

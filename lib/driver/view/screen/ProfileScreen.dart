@@ -5,7 +5,11 @@ import 'package:customer/driver/core/constant/Themes/lightThem.dart';
 import 'package:customer/driver/core/services/services.dart';
 import 'package:customer/driver/linkApi.dart';
 import 'package:customer/driver/model/LoginModel.dart' as driver_login_model;
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:customer/driver/view/widget/widgetApp/ScaffoldWidget.dart';
+// show صريح: تطبيق السائق له نسخته من MyFontWeight فلا نُدخل تصادماً
+import 'package:customer/view/widget/widgetApp/RatingStars.dart'
+    show RatingSummary, parseRating, RatingStarsDisplay;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -72,6 +76,9 @@ class ProfileScreen extends StatelessWidget {
                     value: controller.dataAcoont['phone']?.toString() ?? '—',
                     valueLtr: true,
                   ),
+                  const _RowDivider(),
+                  // التقييم يصل داخل response['driver'] مباشرةً — لا تعديل على الكنترولر
+                  _RatingRow(rating: parseRating(controller.dataAcoont)),
                 ],
               ),
 
@@ -84,11 +91,20 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 10),
               _Card(
                 children: [
-                  _MenuTile(
-                    icon: Icons.support_agent_rounded,
-                    iconBg: const Color(0xff01A850),
-                    label: 'تواصل مع الدعم',
-                    onTap: () => _showSupportDialog(context),
+                  // دردشة الدعم اللحظية — نفس شاشة الزبون ونفس المسار عمداً:
+                  // الشاشة والكنترولر والخدمة كلها تقرأ الدور وقت التشغيل
+                  // (قاعدة المسار، طبقة النقل، تجديد التوكن، غرفة السوكِت)،
+                  // فنسخة سائق منها ستكون تكراراً يتباعد مع أول تعديل.
+                  Obx(
+                    () => _MenuTile(
+                      icon: Icons.support_agent_rounded,
+                      iconBg: const Color(0xff01A850),
+                      label: 'تواصل مع الدعم',
+                      badgeCount: Get.isRegistered<SupportChatService>()
+                          ? Get.find<SupportChatService>().unreadTotal.value
+                          : 0,
+                      onTap: () => Get.toNamed('/SupportChat'),
+                    ),
                   ),
                   const _RowDivider(),
                   _MenuTile(
@@ -120,6 +136,10 @@ class ProfileScreen extends StatelessWidget {
   /// تسجيل الخروج — نحاول حذف FCM token من الـAPI أولاً (لمنع وصول إشعارات
   /// السائق لزبون لاحقاً على نفس الجهاز)، لكن لا نحبس المستخدم لو فشل الطلب.
   Future<void> _handleLogout() async {
+    // قبل مسح التفضيلات: الخدمة تقرأ `Token` و`userRole` منها عند القطع
+    if (Get.isRegistered<SupportChatService>()) {
+      Get.find<SupportChatService>().stop();
+    }
     final fcmToken = await FirebaseMessaging.instance.getToken().catchError(
       (_) => null,
     );
@@ -138,26 +158,6 @@ class ProfileScreen extends StatelessWidget {
     await myServices.sharedPreferences.remove("userRole");
     await myServices.sharedPreferences.remove("tokinFCM");
     Get.offAllNamed("/");
-  }
-
-  void _showSupportDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('تواصل مع الدعم'),
-        content: const Text(
-          'تواصل معنا عبر فريق الدعم الفنّي خلال ساعات العمل.\nسيتم التواصل معك خلال 24 ساعة.',
-          style: TextStyle(height: 1.6),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('حسناً'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showAboutDialog(BuildContext context) {
@@ -462,11 +462,16 @@ class _MenuTile extends StatelessWidget {
   final Color iconBg;
   final String label;
   final VoidCallback onTap;
+
+  /// شارة غير المقروء — تظهر فقط عندما تكون أكبر من صفر
+  final int badgeCount;
+
   const _MenuTile({
     required this.icon,
     required this.iconBg,
     required this.label,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
@@ -500,6 +505,28 @@ class _MenuTile extends StatelessWidget {
                   ),
                 ),
               ),
+              if (badgeCount > 0)
+                Container(
+                  margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
+                  constraints: const BoxConstraints(minWidth: 22),
+                  decoration: BoxDecoration(
+                    color: ProfileScreen._kDanger,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Text(
+                    badgeCount > 99 ? '99+' : '$badgeCount',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: MyFontWeight.bold,
+                    ),
+                  ),
+                ),
               Icon(Icons.chevron_right, color: ProfileScreen._kMuted, size: 22),
             ],
           ),
@@ -550,6 +577,78 @@ class _LogoutButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// صف «تقييمي» في بطاقة المعلومات الشخصية.
+/// يعرض نصاً بديلاً عند غياب التقييمات بدل «0.0» المُحبِط لسائق جديد.
+class _RatingRow extends StatelessWidget {
+  const _RatingRow({required this.rating});
+
+  final RatingSummary? rating;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = rating;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: ProfileScreen._kOrange.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.star_rounded,
+              size: 20,
+              color: ProfileScreen._kOrange,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'تقييمي',
+            style: Theme.of(context).textTheme.titleLarge!.copyWith(
+              fontSize: 14,
+              fontWeight: MyFontWeight.regular,
+              color: ProfileScreen._kMuted,
+            ),
+          ),
+          const Spacer(),
+          if (r == null)
+            Text(
+              'لا توجد تقييمات بعد',
+              style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                fontSize: 13,
+                fontWeight: MyFontWeight.regular,
+                color: ProfileScreen._kMuted,
+              ),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RatingStarsDisplay(
+                  value: r.avg,
+                  size: 15,
+                  color: ProfileScreen._kOrange,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${r.avgLabel} (${r.count})',
+                  style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                    fontSize: 14,
+                    fontWeight: MyFontWeight.semiBold,
+                    color: ProfileScreen._kDark,
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }

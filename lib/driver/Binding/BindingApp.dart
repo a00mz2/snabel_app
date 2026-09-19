@@ -2,6 +2,7 @@
 
 import 'package:customer/driver/controller/HomeController.dart';
 import 'package:customer/driver/controller/driver_settlement_detail_controller.dart';
+import 'package:customer/driver/controller/driver_cod_collections_controller.dart';
 import 'package:customer/driver/controller/driver_wallet_controller.dart';
 import 'package:customer/driver/controller/LoginController.dart';
 import 'package:customer/driver/controller/MainController.dart';
@@ -41,6 +42,14 @@ class DriverSettlementDetailBinding extends Bindings {
   @override
   void dependencies() {
     Get.lazyPut(() => DriverSettlementDetailController());
+  }
+}
+
+// [cod-collect] مبالغ الدفع عند الاستلام (شاشة مستقلة)
+class DriverCodCollectionsBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.lazyPut(() => DriverCodCollectionsController());
   }
 }
 

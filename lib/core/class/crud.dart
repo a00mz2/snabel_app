@@ -11,12 +11,28 @@ import 'package:customer/linkApi.dart';
 import 'package:dartz/dartz.dart';
 
 import 'package:flutter/foundation.dart';
+import 'package:customer/core/services/support_chat_service.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
+/// نتيجة محاولة تجديد التوكن.
+///
+/// الفصل بين [authRejected] و[transient] هو ما يمنع تسجيل الخروج العرضي:
+/// الأول وحده يعني أن الخادم رفض توكن التحديث نهائياً.
+enum RefreshOutcome {
+  /// توكن جديد محفوظ — أعد الطلب
+  success,
+
+  /// 401/403 من مسار التجديد، أو لا توكن محفوظ ⇒ الجلسة انتهت فعلاً
+  authRejected,
+
+  /// شبكة، مهلة، 5xx، جسم مشوّه ⇒ أبقِ الجلسة وأعد المحاولة لاحقاً
+  transient,
+}
+
 class Crud {
-  Future<bool>? _refreshInFlight;
+  Future<RefreshOutcome>? _refreshInFlight;
 
   /// يمنع تكرار مسح الجلسة و [Get.offAllNamed] عند فشل التحديث لعدة طلبات 401 في نفس الوقت.
   bool _logoutNavigationDone = false;
@@ -89,6 +105,11 @@ class Crud {
       print("🚪 [SESSION_LOGOUT] responseBody=$responseBody");
     }
 
+    // قبل مسح التوكن: وإلا حاولت الخدمة تجديد توكن محذوف
+    if (Get.isRegistered<SupportChatService>()) {
+      Get.find<SupportChatService>().stop();
+    }
+
     myServices.sharedPreferences.remove("id");
     myServices.sharedPreferences.remove("USERNAME");
     myServices.sharedPreferences.remove("PASSWORD");
@@ -99,16 +120,23 @@ class Crud {
     Get.offAllNamed("/");
   }
 
-  Future<bool> _refreshTokenWithLock() async {
-    if (_refreshInFlight != null) {
+  /// تجديد مُوحَّد بطلب واحد مهما تزامنت النداءات.
+  ///
+  /// ⚠️ **عام عمداً**: خدمة الدردشة كانت تستدعي [refreshToken] مباشرةً خارج هذا القفل،
+  /// فيلتقي تجديدان يحملان توكن التحديث نفسه عند العودة من الخلفية بعد ١٥ دقيقة،
+  /// ويخسر أحدهما السباق. كل من يحتاج توكناً طازجاً يمرّ من هنا.
+  Future<RefreshOutcome> refreshWithLock() async {
+    final inFlight = _refreshInFlight;
+    if (inFlight != null) {
       print("🔁 [REFRESH_TOKEN] waiting for in-flight refresh...");
-      return _refreshInFlight!;
+      return inFlight;
     }
 
     print("🔁 [REFRESH_TOKEN] starting refresh request...");
-    _refreshInFlight = refreshToken();
+    final future = _performRefresh();
+    _refreshInFlight = future;
     try {
-      final result = await _refreshInFlight!;
+      final result = await future;
       print("🔁 [REFRESH_TOKEN] completed result=$result");
       return result;
     } finally {
@@ -154,17 +182,22 @@ class Crud {
         if (streamedResponse.statusCode == 401 &&
             !isRetry &&
             !isPublicRoutes) {
-          if (await _refreshTokenWithLock()) {
+          final outcome = await refreshWithLock();
+          if (outcome == RefreshOutcome.success) {
             return await postData(linkurl, data, isRetry: true);
-          } else {
+          }
+          // رفض نهائي من الخادم وحده يُنهي الجلسة. الفشل العابر (شبكة، مهلة،
+          // 5xx، إعادة تشغيل الخادم) يُبقيها ويترك الطلب يفشل كردٍّ عادي —
+          // إنهاؤها هنا كان يطرد المستخدم لانقطاع لحظي بعد ١٥ دقيقة خمول.
+          if (outcome == RefreshOutcome.authRejected) {
             _endSession(
               reason: "refresh_failed_after_401_post",
               statusCode: streamedResponse.statusCode,
               url: linkurl,
               responseBody: decoded,
             );
-            return Right({...decoded, "statusRequest": StatusRequest.failure});
           }
+          return Right({...decoded, "statusRequest": StatusRequest.failure});
         }
 
         if (streamedResponse.statusCode == 200 ||
@@ -231,17 +264,22 @@ class Crud {
         if (streamedResponse.statusCode == 401 &&
             !isRetry &&
             !isPublicRoutes) {
-          if (await _refreshTokenWithLock()) {
+          final outcome = await refreshWithLock();
+          if (outcome == RefreshOutcome.success) {
             return await getData(linkurl, isRetry: true);
-          } else {
+          }
+          // رفض نهائي من الخادم وحده يُنهي الجلسة. الفشل العابر (شبكة، مهلة،
+          // 5xx، إعادة تشغيل الخادم) يُبقيها ويترك الطلب يفشل كردٍّ عادي —
+          // إنهاؤها هنا كان يطرد المستخدم لانقطاع لحظي بعد ١٥ دقيقة خمول.
+          if (outcome == RefreshOutcome.authRejected) {
             _endSession(
               reason: "refresh_failed_after_401_get",
               statusCode: streamedResponse.statusCode,
               url: linkurl,
               responseBody: decoded,
             );
-            return Right({...decoded, "statusRequest": StatusRequest.failure});
           }
+          return Right({...decoded, "statusRequest": StatusRequest.failure});
         }
 
         if (streamedResponse.statusCode == 200 ||
@@ -287,8 +325,12 @@ class Crud {
 
       request.fields.addAll(fields);
 
+      // ⚠️ `is` لا `runtimeType ==`: `Uint8List` صنف مجرّد لا يوجد كائن نوعه الفعلي هو هو.
+      // الأصناف الحقيقية `_Uint8List` و`_Uint8ArrayView` (VM) و`NativeUint8List` (الويب)،
+      // ولا تتجاوز `runtimeType`. فالمقارنة بالتساوي كانت false دائماً على كل المنصّات
+      // وتُسقط الملف بصمت فيصل الخادمَ طلبٌ بلا أي جزء ملف.
       for (var element in fileBytes) {
-        if (element.runtimeType == Uint8List) {
+        if (element is Uint8List) {
           request.files.add(
             http.MultipartFile.fromBytes(
               fileFieldName,
@@ -323,7 +365,8 @@ class Crud {
       if (streamedResponse.statusCode == 401 &&
           !isRetry &&
           !isPublicRoutes) {
-        if (await _refreshTokenWithLock()) {
+        final outcome = await refreshWithLock();
+        if (outcome == RefreshOutcome.success) {
           return await postDataWithFile(
             linkUrl,
             fields,
@@ -331,15 +374,19 @@ class Crud {
             fileFieldName,
             isRetry: true,
           );
-        } else {
+        }
+        // رفض نهائي من الخادم وحده يُنهي الجلسة. الفشل العابر (شبكة، مهلة،
+        // 5xx، إعادة تشغيل الخادم) يُبقيها ويترك الطلب يفشل كردٍّ عادي —
+        // إنهاؤها هنا كان يطرد المستخدم لانقطاع لحظي بعد ١٥ دقيقة خمول.
+        if (outcome == RefreshOutcome.authRejected) {
           _endSession(
             reason: "refresh_failed_after_401_file_post",
             statusCode: streamedResponse.statusCode,
             url: linkUrl,
             responseBody: decoded,
           );
-          return Right({...decoded, "statusRequest": StatusRequest.failure});
         }
+        return Right({...decoded, "statusRequest": StatusRequest.failure});
       }
 
       if (streamedResponse.statusCode == 200 ||
@@ -423,7 +470,8 @@ class Crud {
         if (streamedResponse.statusCode == 401 &&
             !isRetry &&
             !isPublicRoutes) {
-          if (await _refreshTokenWithLock()) {
+          final outcome = await refreshWithLock();
+          if (outcome == RefreshOutcome.success) {
             // إعادة الطلب بعد تحديث التوكن
             return await postDataWithFiles(
               linkUrl,
@@ -431,15 +479,19 @@ class Crud {
               files,
               isRetry: true,
             );
-          } else {
+          }
+          // رفض نهائي من الخادم وحده يُنهي الجلسة. الفشل العابر (شبكة، مهلة،
+          // 5xx، إعادة تشغيل الخادم) يُبقيها ويترك الطلب يفشل كردٍّ عادي —
+          // إنهاؤها هنا كان يطرد المستخدم لانقطاع لحظي بعد ١٥ دقيقة خمول.
+          if (outcome == RefreshOutcome.authRejected) {
             _endSession(
               reason: "refresh_failed_after_401_multipart_post",
               statusCode: streamedResponse.statusCode,
               url: linkUrl,
               responseBody: decoded,
             );
-            return Right({...decoded, "statusRequest": StatusRequest.failure});
           }
+          return Right({...decoded, "statusRequest": StatusRequest.failure});
         }
 
         // 🟢 الحالات العادية
@@ -463,55 +515,72 @@ class Crud {
     }
   }
 
-  Future<bool> refreshToken() async {
+  /// ⚠️ مُبقاة للتوافق مع المستدعين القدامى — تمرّ عبر القفل الآن لا حوله.
+  Future<bool> refreshToken() async =>
+      (await refreshWithLock()) == RefreshOutcome.success;
+
+  /// ينفّذ طلب التجديد ويُصنّف نتيجته.
+  ///
+  /// التصنيف هو بيت القصيد: الإصدار السابق كان يُعيد `false` لكل شيء — مهلة، انقطاع
+  /// شبكة، 500، جسم غير JSON — والمستدعي يفسّر `false` كرفض مصادقة فيُنهي الجلسة.
+  /// أي انقطاع لحظي يصادف انتهاء توكن الوصول كان يُخرج المستخدم.
+  Future<RefreshOutcome> _performRefresh() async {
+    final currentRefreshToken = myServices.sharedPreferences.getString(
+      'refreshToken',
+    );
+    if (currentRefreshToken == null || currentRefreshToken.isEmpty) {
+      print("❌ [REFRESH_TOKEN] missing refreshToken in local storage");
+      return RefreshOutcome.authRejected; // لا توكن أصلاً ⇒ لا جلسة
+    }
+
+    http.Response response;
     try {
-      final currentRefreshToken = myServices.sharedPreferences.getString(
-        'refreshToken',
-      );
-      if (currentRefreshToken == null || currentRefreshToken.isEmpty) {
-        print("❌ [REFRESH_TOKEN] missing refreshToken in local storage");
-        return false;
+      response = await http
+          .post(
+            Uri.parse(Applink.CustomersRefreshToken),
+            headers: {"Content-Type": "application/json"},
+            body: json.encode({"refreshToken": currentRefreshToken}),
+          )
+          // بدون مهلة يبقى كل طلب 401 معلّقاً خلف القفل حتى يستسلم النظام
+          .timeout(const Duration(seconds: 20));
+    } catch (e) {
+      print("❌ [REFRESH_TOKEN] transient exception=$e");
+      return RefreshOutcome.transient;
+    }
+
+    // 401/403 وحدهما نهائيان: الخادم يقول إن توكن التحديث ملغى أو فاسد
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      print("❌ [REFRESH_TOKEN] rejected status=${response.statusCode}");
+      return RefreshOutcome.authRejected;
+    }
+    if (response.statusCode != 200) {
+      print("⚠️ [REFRESH_TOKEN] transient status=${response.statusCode}");
+      return RefreshOutcome.transient;
+    }
+
+    try {
+      final decodedRaw = jsonDecode(response.body);
+      if (decodedRaw is! Map) return RefreshOutcome.transient;
+      final decoded = Map<String, dynamic>.from(decodedRaw);
+      final newToken = decoded["accessToken"];
+      final newRefreshToken = decoded["refreshToken"];
+      if (newToken is! String || newToken.isEmpty) {
+        return RefreshOutcome.transient;
       }
-
-      var response = await http.post(
-        Uri.parse(Applink.CustomersRefreshToken),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({"refreshToken": currentRefreshToken}),
-      );
-
-      if (response.statusCode == 200) {
-        final decodedRaw = jsonDecode(response.body);
-        if (decodedRaw is! Map) {
-          print("❌ [REFRESH_TOKEN] body is not a JSON object");
-          return false;
-        }
-        final decoded = Map<String, dynamic>.from(decodedRaw);
-        final newToken = decoded["accessToken"];
-        final newRefreshToken = decoded["refreshToken"];
-        if (newToken is! String ||
-            newRefreshToken is! String ||
-            newToken.isEmpty ||
-            newRefreshToken.isEmpty) {
-          print("❌ [REFRESH_TOKEN] missing accessToken or refreshToken");
-          return false;
-        }
-
-        await myServices.sharedPreferences.setString("Token", newToken);
+      await myServices.sharedPreferences.setString("Token", newToken);
+      if (newRefreshToken is String && newRefreshToken.isNotEmpty) {
         await myServices.sharedPreferences.setString(
           "refreshToken",
           newRefreshToken,
         );
-        print("✅ [REFRESH_TOKEN] success and tokens updated");
-        return true;
-      } else {
-        print(
-          "❌ [REFRESH_TOKEN] failed status=${response.statusCode} body=${response.body}",
-        );
-        return false;
       }
+      print("✅ [REFRESH_TOKEN] success and tokens updated");
+      return RefreshOutcome.success;
     } catch (e) {
-      print("❌ [REFRESH_TOKEN] exception=$e");
-      return false;
+      // جسم مشوّه ليس دليلاً على إلغاء التوكن
+      print("⚠️ [REFRESH_TOKEN] malformed body=$e");
+      return RefreshOutcome.transient;
     }
   }
+
 }

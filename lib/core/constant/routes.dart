@@ -17,8 +17,10 @@ import 'package:customer/view/screen/orderDetailSecrren.dart';
 import 'package:customer/view/screen/otpScreen.dart';
 import 'package:customer/view/screen/PinnedOrderDetailScreen.dart';
 import 'package:customer/view/screen/PinnedOrderEditScreen.dart';
+import 'package:customer/view/screen/OrderEditScreen.dart';
 import 'package:customer/view/screen/PinnedOrdersScreen.dart';
 import 'package:customer/view/screen/ContactUsScreen.dart';
+import 'package:customer/view/screen/SupportChatScreen.dart';
 import 'package:customer/view/screen/PrivacyPolicyScreen.dart';
 import 'package:customer/view/screen/ForceUpdateScreen.dart';
 import 'package:customer/view/screen/RoleSelectScreen.dart';
@@ -126,9 +128,21 @@ List<GetPage<dynamic>>? routes = [
     preventDuplicates: false,
   ),
   GetPage(
+    name: '/OrderEdit',
+    page: () => const OrderEditScreen(),
+    binding: OrderEditBinding(),
+    preventDuplicates: false,
+  ),
+  GetPage(
     name: '/ContactUs',
     page: () => const ContactUsScreen(),
     binding: ContactUsBinding(),
+  ),
+  GetPage(
+    name: '/SupportChat',
+    page: () => const SupportChatScreen(),
+    binding: SupportChatBinding(),
+    preventDuplicates: false,
   ),
   GetPage(
     name: '/PrivacyPolicy',

@@ -6,17 +6,28 @@ import 'package:flutter/material.dart';
 import '../core/constant/assets/icons.dart';
 import '../core/functions/formatNumber.dart';
 
+/// بند من بنود الطلب في تفاصيل الطلب (سائق).
+/// في وضع التعديل ([editing]) تظهر أزرار «−» / «+» / حذف عبر الاستدعاءات الاختيارية.
 class OrderProductWidget extends StatelessWidget {
   final int index;
 
   final dataOrder;
   final int length;
 
+  final bool editing;
+  final VoidCallback? onDecrement;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onRemove;
+
   const OrderProductWidget({
     super.key,
     required this.index,
     this.dataOrder,
     required this.length,
+    this.editing = false,
+    this.onDecrement,
+    this.onIncrement,
+    this.onRemove,
   });
 
   @override
@@ -107,14 +118,16 @@ class OrderProductWidget extends StatelessWidget {
                 /// 🥖 اسم المنتج + نوع التغليف
                 Row(
                   children: [
-                    Text(
-                      dataOrder['name'],
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                        color: const Color(0xff0E0C0C),
-                        fontSize: 14,
-                        fontWeight: MyFontWeight.light,
+                    Flexible(
+                      child: Text(
+                        dataOrder['name']?.toString() ?? '',
+                        maxLines: editing ? 1 : 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                          color: const Color(0xff0E0C0C),
+                          fontSize: 14,
+                          fontWeight: MyFontWeight.light,
+                        ),
                       ),
                     ),
                     SizedBox(width: 5),
@@ -153,8 +166,52 @@ class OrderProductWidget extends StatelessWidget {
               ],
             ),
           ),
+
+          if (editing) _editControls(context),
         ],
       ),
+    );
+  }
+
+  /// أزرار التعديل: تقليل (حتى الصفر = حذف) / زيادة (حتى الكمية الأصلية) / حذف.
+  Widget _editControls(BuildContext context) {
+    const compact = BoxConstraints(minWidth: 32, minHeight: 32);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: onDecrement,
+          padding: EdgeInsets.zero,
+          constraints: compact,
+          iconSize: 22,
+          tooltip: 'تقليل',
+          icon: const Icon(Icons.remove_circle_outline, color: Color(0xffF39316)),
+        ),
+        Text(
+          "${dataOrder['quantity']}",
+          style: Theme.of(context).textTheme.titleLarge!.copyWith(
+            color: const Color(0xff231F1E),
+            fontSize: 14,
+            fontWeight: MyFontWeight.semiBold,
+          ),
+        ),
+        IconButton(
+          onPressed: onIncrement,
+          padding: EdgeInsets.zero,
+          constraints: compact,
+          iconSize: 22,
+          tooltip: 'زيادة (حتى الكمية الأصلية)',
+          icon: const Icon(Icons.add_circle_outline),
+        ),
+        IconButton(
+          onPressed: onRemove,
+          padding: EdgeInsets.zero,
+          constraints: compact,
+          iconSize: 22,
+          tooltip: 'حذف الصنف',
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+        ),
+      ],
     );
   }
 

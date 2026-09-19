@@ -3,6 +3,8 @@
 import 'package:customer/controller/HomeController.dart';
 import 'package:customer/core/constant/Themes/lightThem.dart';
 import 'package:customer/core/constant/assets/icons.dart';
+import 'package:customer/view/widget/widgetApp/RatingStars.dart';
+import 'package:customer/view/widget/widgetApp/SpecialPriceBadge.dart';
 import 'package:customer/view/widget/widgetApp/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -16,11 +18,19 @@ class ProductWidget extends StatelessWidget {
     required this.available,
     required this.inFavorites,
     required this.productId,
+    this.isSpecialPrice = false,
+    this.rating,
   });
   final int index;
   final String image, name, productId;
   final bool available;
   final bool inFavorites;
+
+  /// المنتج بسعر خاص لهذا الزبون (من الخادم) → شارة فوق الصورة.
+  final bool isSpecialPrice;
+
+  /// ملخّص التقييم (آخر 100) — `null` يعني لا تقييمات فلا شارة.
+  final RatingSummary? rating;
 
   final controller = Get.find<HomeController>();
 
@@ -95,6 +105,21 @@ class ProductWidget extends StatelessWidget {
                   ),
                 ),
               ),
+              // الجهة المقابلة لزر المفضلة (right: 8) — حافة فعلية لا تتأثر بالاتجاه
+              if (isSpecialPrice)
+                const Positioned(
+                  top: 8,
+                  left: 8,
+                  child: SpecialPriceBadge(compact: true),
+                ),
+              // داخل Stack الصورة: ميزانية ارتفاع البطاقة (226) ممتلئة تماماً
+              // فلا يمكن إضافة صف جديد. الزاويتان العلويتان مشغولتان.
+              if (rating != null)
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  child: RatingBadge(rating: rating, compact: true),
+                ),
             ],
           ),
           const SizedBox(height: 8),

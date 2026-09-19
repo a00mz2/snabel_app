@@ -26,10 +26,15 @@ class ScaffoldWidget extends StatelessWidget {
     this.namePage,
     this.iconPage,
     this.backgroundColor,
+    this.emptyStateChild,
   });
   final bool? isSub;
   final bool? isPublicRoutes;
   final RxInt statusCode;
+
+  /// يُعرض بدل رسالة الخطأ العامة عندما تكون الحالة [StatusRequest.empty]
+  /// (مثل: «الطلب غير موجود» بعد حذفه من الإدارة).
+  final Widget? emptyStateChild;
 
   final bool? hideNotifications;
   final Future<void> Function()? onRefresh;
@@ -81,6 +86,7 @@ class ScaffoldWidget extends StatelessWidget {
                             onRefresh: onRefresh,
                             statusRequest: statusRequest,
                             statusCode: statusCode,
+                            emptyChild: emptyStateChild,
                           )
                         : statusCode.value == 400
                         ? child ?? SizedBox()

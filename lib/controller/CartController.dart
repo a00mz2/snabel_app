@@ -5,13 +5,16 @@ import 'package:customer/core/constant/assets/icons.dart';
 import 'package:customer/core/constant/assets/lottie.dart';
 import 'package:customer/core/functions/handlingData.dart';
 import 'package:customer/core/functions/response_map.dart';
+import 'package:customer/core/functions/showCodChoiceDialog.dart';
 import 'package:customer/core/functions/showConfirmationDialog.dart';
 import 'package:customer/core/functions/snackbar.dart';
 import 'package:customer/model/CartModel.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lottie/lottie.dart';
+import 'package:customer/core/constant/payment_methods.dart';
 
+import 'package:customer/core/functions/orderRounding.dart';
 class CartController extends GetxController {
   CartModel model = CartModel(Get.find());
   @override
@@ -36,6 +39,25 @@ class CartController extends GetxController {
   }
 
   //========var======================
+  /// ملاحظة الزبون على الطلب (صفحة إرسال الطلب) — تُفرَّغ بعد نجاح الإرسال.
+  static const int kOrderNoteMaxLength = 500;
+  /// نصّ الملاحظة — مصدر الحقيقة عند الإرسال.
+  ///
+  /// ⚠️ لا نملك هنا [TextEditingController]: هذا الكنترولر مسجَّل بـ `Get.create`
+  /// (مصنع يُنتج نسخة لكل `Get.find`) وGetX يتخلّص منها عند إغلاق المسار، فأي
+  /// TextEditingController يملكه ينتهي مُتلَفاً بينما الودجت ما زالت تستعمله.
+  /// الودجت [OrderNoteField] تملك controller خاصاً بها وتكتب إلى هذا الـRx.
+  final RxString orderNote = ''.obs;
+
+  /// [pay-method] طريقة دفع الطلب: `wallet` (آجل) أو `cash` (نقد عند الاستلام).
+  /// النقدي لا يُخصم من المحفظة ولا يخضع للحد المالي، ولا يُرجَع منه شيء.
+  final RxString orderPaymentMethod = kPaymentWallet.obs;
+
+  void setOrderPaymentMethod(String value) =>
+      orderPaymentMethod.value = value == kPaymentCash
+          ? kPaymentCash
+          : kPaymentWallet;
+
   Rx<StatusRequest> statusRequest = StatusRequest.loading.obs;
   Rx<StatusRequest> statusRequestDeliveryPeriods = StatusRequest.empty.obs;
   RxInt statusCode = 200.obs;
@@ -45,6 +67,19 @@ class CartController extends GetxController {
   var deliveryPeriods = {}.obs;
 
   RxInt deliveryFee = 0.obs;
+
+  /// [round-250] خطوة تقريب الإجمالي من الخادم (`roundingStep` في رد السلة).
+  final RxInt roundingStep = kOrderRoundingStep.obs;
+
+  /// مجموع الأصناف بلا تقريب (تبويب السلة).
+  int get cartSubtotal => calculateTotalCartPrice().round();
+
+  /// [round-250] الإجمالي الذي سيُخصم فعلاً عند الإرسال:
+  /// (الأصناف + التوصيل) مقرَّباً للأعلى إلى مضاعف الخطوة — يطابق الخادم.
+  int get finalTotal => roundUpToStep(
+        cartSubtotal + deliveryFee.value,
+        step: roundingStep.value,
+      );
   RxBool isPin = false.obs;
   RxList daysOfWeek = [].obs;
 
@@ -184,6 +219,7 @@ class CartController extends GetxController {
     if (handlingData(response) == StatusRequest.success) {
       dataCart.value = response['cart'] ?? [];
       deliveryFee.value = response['deliveryFee'] ?? 0;
+      roundingStep.value = roundingStepOrDefault(response['roundingStep']); // [round-250]
     }
     statusCode.value = handlingStatusCode(response);
     statusRequest.value = handlingData(response);
@@ -201,6 +237,17 @@ class CartController extends GetxController {
       dataCart[index]['productCartId'],
       dataCart[index]['quantity'],
     );
+  }
+
+  /// تعيين كمية مطلقة لعنصر السلة (من مربع إدخال الكمية).
+  Future<void> setCartQuantity(int index, int quantity) async {
+    if (index < 0 || index >= dataCart.length) return;
+    final q = quantity.clamp(1, 9999);
+    final current = dataCart[index]['quantity'];
+    if (current is num && current.toInt() == q) return;
+    dataCart[index]['quantity'] = q;
+    dataCart.refresh();
+    await model.updateCartQuantity(dataCart[index]['productCartId'], q);
   }
 
   removeFromCart(int index) async {
@@ -266,6 +313,7 @@ class CartController extends GetxController {
       var response = await model.createPinnedOrder(
         deliveryPeriods['_id'],
         daysOfWeek,
+        paymentMethod: orderPaymentMethod.value, // [pay-method]
       );
       if (handlingData(response) == StatusRequest.success) {
         bool? confirm = await showConfirmationDialog(
@@ -302,12 +350,24 @@ class CartController extends GetxController {
       return;
     }
 
+    return _submitCartOrder();
+  }
+
+  static num _asNum(dynamic v) =>
+      v is num ? v : (num.tryParse('${v ?? ''}') ?? 0);
+
+  /// إرسال طلب عادي؛ [codMode] يُمرَّر فقط بعد اختيار الزبون الدفع نقداً عند الاستلام.
+  Future<void> _submitCartOrder({String? codMode}) async {
     statusRequest.value = StatusRequest.loading;
     var response = await model.createOrderFromCart(
       deliveryPeriods['_id'],
       deliveryDate,
+      note: orderNote.value,
+      paymentMethod: orderPaymentMethod.value, // [pay-method]
+      codMode: codMode,
     );
     if (handlingData(response) == StatusRequest.success) {
+      orderNote.value = '';
       bool? confirm = await showConfirmationDialog(
         colorActivButton: Color(0xff3C2313),
         textActivButton: 'الرجوع للرئيسية',
@@ -320,10 +380,26 @@ class CartController extends GetxController {
       handlingData(response);
       handlingStatusCode(response);
       if (confirm == null || !confirm) {
-        return Get.offAllNamed('/MainScreen', arguments: {'current': 0});
+        Get.offAllNamed('/MainScreen', arguments: {'current': 0});
+        return;
       }
-      return Get.offAllNamed('/MainScreen', arguments: {'current': 0});
+      Get.offAllNamed('/MainScreen', arguments: {'current': 0});
+      return;
     } else if (handlingStatusCode(response) == 400) {
+      final m = tryResponseMap(response);
+      // تجاوز الحد الائتماني: الزبون يختار تسديد الفرق أو الدفع الكامل نقداً للسائق
+      if (codMode == null && m?['code'] == 'CREDIT_LIMIT_EXCEEDED') {
+        statusRequest.value = StatusRequest.success; // إظهار الصفحة قبل الحوار
+        final choice = await showCodChoiceDialog(
+          Get.context!,
+          finalTotal: _asNum(m?['finalTotal']),
+          balance: _asNum(m?['balance']),
+          limit: _asNum(m?['limit']),
+          excess: _asNum(m?['excess']),
+        );
+        if (choice != null) return _submitCartOrder(codMode: choice);
+        return;
+      }
       await showConfirmationDialog(
         colorActivButton: Color(0xff3C2313),
         textActivButton: 'موافق',
@@ -333,7 +409,8 @@ class CartController extends GetxController {
         subtitle: tryResponseMessage(response) ?? "حدث خطأ ما",
         icon: Image.asset(AppIcons.PaymentFailed, width: 64, height: 64),
       );
-      return statusRequest.value = StatusRequest.success;
+      statusRequest.value = StatusRequest.success;
+      return;
     } else {
       AppSnackBar.error(tryResponseMessage(response) ?? "حدث خطأ ما");
       statusRequest.value = handlingData(response);

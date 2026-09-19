@@ -74,7 +74,7 @@ class DriverOrdersController extends GetxController {
         status = ["مع السائق"];
         break;
       case 5:
-        status = ["تم التسليم"];
+        status = ["تم التسليم", "واصل جزئي"];
         break;
       case 6:
         status = ["مرفوض"];

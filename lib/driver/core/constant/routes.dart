@@ -1,6 +1,7 @@
 // ignore_for_file: camel_case_types
 
 import 'package:customer/driver/Binding/BindingApp.dart';
+import 'package:customer/driver/view/screen/DriverCodCollectionsScreen.dart';
 import 'package:customer/driver/view/screen/DriverSettlementDetailScreen.dart';
 import 'package:customer/driver/view/screen/LoginScreen.dart';
 import 'package:customer/driver/view/screen/MainScreen.dart';
@@ -36,6 +37,12 @@ List<GetPage<dynamic>> driverRoutes = [
     name: '/driver/Notifications',
     page: () => NotificationsScreen(),
     binding: DriverNotificationsBinding(),
+  ),
+  // [cod-collect] مبالغ الدفع عند الاستلام: في ذمتي / تم التسديد
+  GetPage(
+    name: '/driver/CodCollections',
+    page: () => const DriverCodCollectionsScreen(),
+    binding: DriverCodCollectionsBinding(),
   ),
   GetPage(
     name: '/driver/DriverSettlementDetail',

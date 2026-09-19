@@ -1,4 +1,4 @@
-import 'package:customer/core/class/reverse_verify_mixin.dart';
+import 'package:customer/core/class/otp_verify_mixin.dart';
 import 'package:customer/core/class/statusRequest.dart';
 import 'package:customer/core/functions/handlingData.dart';
 import 'package:customer/core/functions/response_map.dart';
@@ -7,7 +7,7 @@ import 'package:customer/model/ForgotPasswordModel.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class ForgotPasswordController extends GetxController with ReverseVerifyMixin {
+class ForgotPasswordController extends GetxController with OtpVerifyMixin {
   ForgotPasswordController() : _model = ForgotPasswordModel(Get.find());
 
   final ForgotPasswordModel _model;
@@ -35,7 +35,7 @@ class ForgotPasswordController extends GetxController with ReverseVerifyMixin {
 
   @override
   void onClose() {
-    disposeReverse();
+    disposeOtp();
     phoneController.dispose();
     newPasswordController.dispose();
     confirmPasswordController.dispose();
@@ -50,7 +50,7 @@ class ForgotPasswordController extends GetxController with ReverseVerifyMixin {
     }
   }
 
-  /// الخطوة 1: التحقق من الرقم وبدء التحقق العكسي.
+  /// الخطوة 1: التحقق من الرقم وإرسال رمز التحقق إلى واتساب.
   Future<void> requestOtp() async {
     if (formPhoneKey.currentState != null &&
         !formPhoneKey.currentState!.validate()) {
@@ -59,25 +59,30 @@ class ForgotPasswordController extends GetxController with ReverseVerifyMixin {
     final phone = phoneController.text.trim();
 
     statusRequest.value = StatusRequest.loading;
-    final started = await startReverse(phone, 'resetPassword');
+    final result = await sendOtp(phone, 'resetPassword');
     statusRequest.value = StatusRequest.none;
 
-    if (started) {
-      step.value = 1;
-    } else {
-      AppSnackBar.error(
-        reverseError.value.isEmpty ? 'تعذّر بدء التحقق' : reverseError.value,
-      );
+    switch (result) {
+      case OtpSendResult.sent:
+        step.value = 1;
+        break;
+      case OtpSendResult.cooldown:
+        // مهلة من الخادم — رمز سابق قد يكون صالحاً، ننتقل مع عرض العدّاد
+        AppSnackBar.warning(otpError.value);
+        step.value = 1;
+        break;
+      case OtpSendResult.failed:
+        AppSnackBar.error(
+          otpError.value.isEmpty ? 'تعذّر إرسال رمز التحقق' : otpError.value,
+        );
+        break;
     }
   }
 
-  /// إعادة بدء جلسة تحقّق جديدة.
-  Future<void> restartReverse() => requestOtp();
-
-  /// الخطوة 2: تعيين كلمة المرور بعد اكتمال التحقق العكسي.
+  /// الخطوة 2: تعيين كلمة المرور بالرمز المدخل (يُتحقَّق ويُستهلك في الخادم).
   Future<void> submitNewPassword() async {
-    if (!reverseVerified.value) {
-      AppSnackBar.warning('أكمل التحقق أولاً: أرسل الرمز على واتساب');
+    if (!otpIsComplete) {
+      AppSnackBar.warning('أدخل رمز التحقق المكوّن من $kOtpLength أرقام أولاً');
       return;
     }
     if (newPasswordController.text.length < 6) {
@@ -96,7 +101,7 @@ class ForgotPasswordController extends GetxController with ReverseVerifyMixin {
     statusRequest.value = StatusRequest.loading;
     final response = await _model.resetPasswordWithOtp(
       phone: phoneController.text.trim(),
-      reverseRef: reverseRef,
+      otp: otpCode.value,
       newPassword: newPasswordController.text,
     );
 
@@ -104,19 +109,23 @@ class ForgotPasswordController extends GetxController with ReverseVerifyMixin {
       AppSnackBar.success(
         tryResponseMessage(response) ?? 'تم تغيير كلمة المرور بنجاح',
       );
+      disposeOtp();
       newPasswordController.clear();
       confirmPasswordController.clear();
       Get.offAllNamed('/');
     } else {
       AppSnackBar.error(tryResponseMessage(response) ?? 'تعذر إكمال العملية');
       statusRequest.value = StatusRequest.none;
+      clearOtpField();
     }
   }
 
   void goBackStep() {
     if (step.value == 1) {
+      disposeOtp();
+      clearOtpField();
+      otpError.value = '';
       step.value = 0;
-      disposeReverse();
       newPasswordController.clear();
       confirmPasswordController.clear();
     } else {

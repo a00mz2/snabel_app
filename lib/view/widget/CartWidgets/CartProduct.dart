@@ -3,7 +3,9 @@ import 'package:customer/core/constant/Themes/lightThem.dart';
 import 'package:customer/core/constant/assets/icons.dart';
 import 'package:customer/core/functions/formatNumber.dart';
 import 'package:customer/linkApi.dart';
+import 'package:customer/view/widget/widgetApp/QuantityInputDialog.dart';
 import 'package:customer/view/widget/widgetApp/app_network_image.dart';
+import 'package:customer/view/widget/widgetApp/SpecialPriceBadge.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get_state_manager/get_state_manager.dart';
 import 'package:get/instance_manager.dart';
@@ -79,16 +81,37 @@ class CartProduct extends StatelessWidget {
                             child: Icon(Icons.remove, color: Color(0xff6E615E)),
                           ),
                           SizedBox(width: 6),
+                          // النقر على الرقم يفتح مربع كتابة الكمية
                           Obx(
-                            () => Text(
-                              (controller.dataCart[index]['quantity'])
-                                  .toString(),
-                              style: Theme.of(context).textTheme.titleLarge!
-                                  .copyWith(
-                                    color: Color(0xff231F1E),
-                                    fontSize: 16,
-                                    fontWeight: MyFontWeight.regular,
-                                  ),
+                            () => InkWell(
+                              borderRadius: BorderRadius.circular(4),
+                              onTap: () async {
+                                final raw =
+                                    controller.dataCart[index]['quantity'];
+                                final current = raw is num
+                                    ? raw.toInt()
+                                    : int.tryParse('$raw') ?? 1;
+                                final v = await showQuantityInputDialog(
+                                  context,
+                                  current: current,
+                                );
+                                if (v != null) {
+                                  await controller.setCartQuantity(index, v);
+                                }
+                              },
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 2),
+                                child: Text(
+                                  (controller.dataCart[index]['quantity'])
+                                      .toString(),
+                                  style: Theme.of(context).textTheme.titleLarge!
+                                      .copyWith(
+                                        color: Color(0xff231F1E),
+                                        fontSize: 16,
+                                        fontWeight: MyFontWeight.regular,
+                                      ),
+                                ),
+                              ),
                             ),
                           ),
                           SizedBox(width: 6),
@@ -127,6 +150,12 @@ class CartProduct extends StatelessWidget {
                                 fontWeight: MyFontWeight.light,
                               ),
                         ),
+                        if (hasSpecialPrice(
+                          controller.dataCart[index]['product'],
+                        )) ...[
+                          const SizedBox(width: 6),
+                          const SpecialPriceBadge(compact: true),
+                        ],
                       ],
                     ),
                     InkWell(
