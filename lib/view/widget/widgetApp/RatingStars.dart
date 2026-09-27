@@ -180,29 +180,36 @@ class RatingSummaryRow extends StatelessWidget {
         ),
       );
     }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        RatingStarsDisplay(value: r.avg, size: starSize),
-        const SizedBox(width: 6),
-        Text(
-          r.avgLabel,
-          style: theme.textTheme.titleLarge!.copyWith(
-            fontSize: 15,
-            fontWeight: MyFontWeight.semiBold,
-            color: const Color(0xff231F1E),
+    // عرضه الطبيعي ~253 بكسل وهو أعرض مما يتركه له صف الاسم/السعر على هاتف ضيّق،
+    // فكان يتجاوز بـ٣٢ بكسل. التقليص أولى من القصّ: عدد التقييمات جزء من المعنى
+    // ولا يصحّ أن تبتلعه النقاط الثلاث. في سياق بلا حدّ أعلى لا يفعل شيئاً.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: AlignmentDirectional.centerStart,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RatingStarsDisplay(value: r.avg, size: starSize),
+          const SizedBox(width: 6),
+          Text(
+            r.avgLabel,
+            style: theme.textTheme.titleLarge!.copyWith(
+              fontSize: 15,
+              fontWeight: MyFontWeight.semiBold,
+              color: const Color(0xff231F1E),
+            ),
           ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '(${r.count} تقييم)',
-          style: theme.textTheme.titleLarge!.copyWith(
-            fontSize: 12,
-            fontWeight: MyFontWeight.light,
-            color: const Color(0xff7C7C7C),
+          const SizedBox(width: 4),
+          Text(
+            '(${r.count} تقييم)',
+            style: theme.textTheme.titleLarge!.copyWith(
+              fontSize: 12,
+              fontWeight: MyFontWeight.light,
+              color: const Color(0xff7C7C7C),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
