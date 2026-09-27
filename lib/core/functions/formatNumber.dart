@@ -1,13 +1,11 @@
 import 'package:intl/intl.dart';
 
-String formatNumber(int originalNumber) {
-  String formattedNumber = NumberFormat.simpleCurrency(
-    name: "",
-    decimalDigits: 0,
-  ).format(originalNumber);
-
-  return formattedNumber.toString();
-}
+/// [price-decimal] يقبل `num` لا `int`.
+///
+/// كان توقيعه `int`، وكل مستدعٍ يمرّر قيمة `dynamic` من JSON، فسعر عشري كان
+/// يرمي `double is not a subtype of int` ويترك مستطيلاً رمادياً مكان العنصر.
+/// يعرض الكسر بخانتين إن وُجد، وبلا كسور إن كان الرقم صحيحاً.
+String formatNumber(num? originalNumber) => formatNumberNum(originalNumber ?? 0);
 
 String formatNumberNum(num number, {int? decimalDigits}) {
   final digits = decimalDigits ?? ((number % 1 == 0) ? 0 : 2);

@@ -15,7 +15,9 @@ class OrderItemWidget extends StatelessWidget {
   final List productImages; // روابط صور المنتجات (2–3 صور)
   final String orderTitle; // "طلب رقم #5234"
   final String orderDate; // "2025 يوليو، 23"
-  final int orderPrice; // "128.000 د.ع"
+  /// [price-decimal] `num` لا `int`: كان الإسناد من JSON يرمي `TypeError`
+  /// قبل أن يُبنى الودجت، فيختفي سطر الطلب كاملاً.
+  final num orderPrice; // "128.000 د.ع"
   final String status; // لون الدائرة في اليمين
   final int index;
   const OrderItemWidget({

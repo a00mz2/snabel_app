@@ -11,6 +11,12 @@ import 'package:get/get.dart';
 import 'package:customer/core/constant/payment_methods.dart';
 
 import 'package:customer/core/functions/orderRounding.dart';
+/// [price-decimal] رقم مالي كما هو، بلا بتر.
+num _toMoney(dynamic v, [num fallback = 0]) {
+  if (v is num) return v;
+  return num.tryParse('${v ?? ''}') ?? fallback;
+}
+
 int _toInt(dynamic v, [int fallback = 0]) {
   if (v is num) return v.toInt();
   return int.tryParse('${v ?? ''}') ?? fallback;
@@ -112,7 +118,9 @@ class OrderDetelsController extends GetxController {
 
   int _qty(Map item) => _toInt(item['quantity']);
 
-  int _lineTotal(Map item) {
+  /// [price-decimal] `num` لا `int`: كان `.toInt()` يبتر **لكل سطر** فيتراكم
+  /// النقص، ويخالف جهة الزبون التي تقرّب للأقرب.
+  num _lineTotal(Map item) {
     final price = item['price'];
     if (price is! num) return 0;
     final packing = item['packing'];
@@ -121,19 +129,20 @@ class OrderDetelsController extends GetxController {
       packQty = (packing['quantity'] as num).toInt();
       if (packQty < 1) packQty = 1;
     }
-    return (price * packQty * _qty(item)).toInt();
+    return price * packQty * _qty(item);
   }
 
-  int get totalPrice => _toInt(dataOrder['totalPrice']);
-  int get deliveryFee => _toInt(dataOrder['deliveryFee']);
+  num get totalPrice => _toMoney(dataOrder['totalPrice']);
+  num get deliveryFee => _toMoney(dataOrder['deliveryFee']);
 
   /// [round-250] تقريب الإجمالي كما خزّنه الخادم (0 للطلبات القديمة).
-  int get roundingAdjustment => _toInt(dataOrder['roundingAdjustment']);
+  /// [round-250] قد يكون **سالباً** بعد التقريب للأقرب.
+  num get roundingAdjustment => _toMoney(dataOrder['roundingAdjustment']);
 
   /// المجموع (بدون التوصيل): في وضع التعديل يُحسب من البنود المعدّلة.
-  int get previewSubtotal {
+  num get previewSubtotal {
     if (editMode.value) {
-      var s = 0;
+      num s = 0;
       for (final it in editedItems) {
         s += _lineTotal(it);
       }
@@ -143,9 +152,9 @@ class OrderDetelsController extends GetxController {
   }
 
   /// المجموع الكلي (شامل التوصيل) — `totalPrice` يتضمن رسوم التوصيل أصلاً.
-  /// [round-250] في وضع التعديل يُعاد تقريبه للأعلى كما سيفعل الخادم
+  /// [round-250] في وضع التعديل يُعاد تقريبه **للأقرب** كما سيفعل الخادم
   /// (والتخفيض لا يرفعه أبداً)، فيرى السائق الرقم الذي سيُحصَّل بالضبط.
-  int get previewTotal {
+  num get previewTotal {
     if (!editMode.value) return totalPrice;
     final originalSubtotal = totalPrice - deliveryFee - roundingAdjustment;
     return previewAfterDelta(

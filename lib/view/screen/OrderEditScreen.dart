@@ -121,10 +121,10 @@ class OrderEditScreen extends GetView<OrderEditController> {
       final String deltaText;
       final Color deltaColor;
       if (delta < 0) {
-        deltaText = 'سيُرجع ${formatNumber((-delta).round())} د.ع إلى محفظتك';
+        deltaText = 'سيُرجع ${formatNumber(-delta)} د.ع إلى محفظتك';
         deltaColor = const Color(0xff12B76A);
       } else if (delta > 0) {
-        deltaText = 'سيُخصم ${formatNumber(delta.round())} د.ع من محفظتك';
+        deltaText = 'سيُخصم ${formatNumber(delta)} د.ع من محفظتك';
         deltaColor = const Color(0xffC62828);
       } else {
         deltaText = 'لا تغيير في الإجمالي';
@@ -143,13 +143,13 @@ class OrderEditScreen extends GetView<OrderEditController> {
             _summaryRow(
               context,
               'الإجمالي الحالي',
-              '${formatNumber(controller.originalTotal.round())} د.ع',
+              '${formatNumber(controller.originalTotal)} د.ع',
             ),
             const SizedBox(height: 6),
             _summaryRow(
               context,
               'الإجمالي بعد التعديل',
-              '${formatNumber(newTotal.round())} د.ع',
+              '${formatNumber(newTotal)} د.ع',
               bold: true,
             ),
             const SizedBox(height: 8),
@@ -284,9 +284,9 @@ class OrderEditScreen extends GetView<OrderEditController> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${formatNumber(line.price.round())} د.ع'
+                      '${formatNumber(line.price)} د.ع'
                       '${line.packQty > 1 ? ' × ${line.packQty}' : ''}'
-                      ' = ${formatNumber(line.lineTotal.round())} د.ع',
+                      ' = ${formatNumber(line.lineTotal)} د.ع',
                       style: Theme.of(context).textTheme.bodySmall!.copyWith(
                             color: const Color(0xff7C7C7C),
                           ),
@@ -505,7 +505,7 @@ class OrderEditScreen extends GetView<OrderEditController> {
                                   title: Text((p['name'] ?? '').toString()),
                                   subtitle: p['price'] is num
                                       ? Text(
-                                          '${formatNumber((p['price'] as num).round())} د.ع',
+                                          '${formatNumber(p['price'] as num)} د.ع',
                                         )
                                       : null,
                                   onTap: () {

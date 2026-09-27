@@ -136,16 +136,20 @@ class OrderDetailController extends GetxController {
     }
   }
 
-  int totalItemPrice(int index) {
-    try {
-      return (dataOrder['items'][index]['price'] *
-          (dataOrder['items'][index]['packing']['quantity'] *
-              dataOrder['items'][index]['quantity']));
-    } catch (e) {
-      return (dataOrder['items'][index]['price'] *
-          dataOrder['items'][index]['quantity']);
-    }
+  /// [price-decimal] `num` لا `int` — السعر قد يكون كسراً.
+  ///
+  /// كان `try/catch` لا ينقذ: كتلة `catch` تكرّر الضرب نفسه فترمي مرة أخرى.
+  num totalItemPrice(int index) {
+    final item = dataOrder['items'][index];
+    final price = _asNum(item['price']);
+    final qty = _asNum(item['quantity'] ?? 1);
+    final packing = item['packing'];
+    final packQty = packing is Map ? _asNum(packing['quantity'] ?? 1) : 1;
+    return price * (packQty == 0 ? 1 : packQty) * qty;
   }
+
+  static num _asNum(dynamic v) =>
+      v is num ? v : (num.tryParse('${v ?? ''}') ?? 0);
 
   //==========التقييم==========
 

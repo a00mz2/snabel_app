@@ -114,11 +114,12 @@ class OrderEditController extends GetxController {
     return d;
   }
 
-  /// [round-250] معاينة الإجمالي بعد إعادة التقريب للأعلى — نفس قاعدة الخادم.
+  /// [round-250] معاينة الإجمالي بعد إعادة التقريب للأقرب — نفس قاعدة الخادم.
   OrderTotalPreview get _preview => previewAfterDelta(
         currentTotal: originalTotal,
         currentRounding: currentRounding,
         lineDelta: lineDelta,
+        step: roundingStepOrDefault(order['roundingStep']),
       );
 
   /// فرق الإجمالي المتوقع (سالب = يُرجع إلى المحفظة، موجب = يُخصم).

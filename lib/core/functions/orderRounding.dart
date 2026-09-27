@@ -1,7 +1,7 @@
 /// [round-250] قاعدة تقريب إجمالي الطلب — نسخة العميل من
 /// `api/src/compat/services/orderTotals.cjs` (مصدر الحقيقة هو الخادم؛ هذه للمعاينة فقط).
 ///
-/// الإجمالي الذي يدفعه الزبون = (مجموع الأصناف + رسوم التوصيل) مقرَّباً **للأعلى**
+/// الإجمالي الذي يدفعه الزبون = (مجموع الأصناف + رسوم التوصيل) مقرَّباً **للأقرب**
 /// إلى أقرب مضاعف للخطوة (250 د.ع افتراضياً؛ الخادم يعيد `roundingStep` في
 /// معاينات السلة والنماذج ليُفضَّل على الثابت). الفرق محفوظ في `roundingAdjustment`.
 library;
@@ -23,11 +23,14 @@ int roundingStepOrDefault(dynamic raw) {
 }
 
 /// تقريب للأعلى إلى مضاعف الخطوة؛ الصفر والسالب يعودان كما هما.
-int roundUpToStep(num? amount, {int step = kOrderRoundingStep}) {
+/// [round-250] تقريب إلى **أقرب** مضاعف للخطوة؛ الصفر والسالب كما هما.
+///
+/// كان للأعلى، فصار للأقرب مطابقةً لـ`roundToStep` في الخادم. المنتصف يصعد.
+int roundToStep(num? amount, {int step = kOrderRoundingStep}) {
   final n = _toInt(amount);
   if (n <= 0) return n;
   final s = step > 0 ? step : kOrderRoundingStep;
-  return ((n + s - 1) ~/ s) * s;
+  return ((n + s ~/ 2) ~/ s) * s;
 }
 
 /// نتيجة معاينة إعادة الحساب بعد تعديل (تطابق `recomputeAfterDelta` في الخادم).
@@ -68,14 +71,15 @@ OrderTotalPreview previewAfterDelta({
   if (ld == 0) {
     total = prev;
   } else {
-    total = roundUpToStep(base, step: step);
+    total = roundToStep(base, step: step);
     if (ld < 0 && total > prev) total = prev;
   }
   final pad = total - base;
   return OrderTotalPreview(
     previousTotal: prev,
     base: base,
-    roundingAdjustment: pad > 0 ? pad : 0,
+    // بلا حجب السالب: التقريب للأقرب يُنقص كما يزيد.
+    roundingAdjustment: pad,
     totalPrice: total,
     delta: total - prev,
   );

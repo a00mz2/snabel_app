@@ -66,17 +66,19 @@ class CartController extends GetxController {
 
   var deliveryPeriods = {}.obs;
 
-  RxInt deliveryFee = 0.obs;
+  /// [price-decimal] `RxNum` لا `RxInt`: كان إسناد رسم توصيل عشري يرمي
+  /// `TypeError` داخل `getCart` فيبقى مؤشّر التحميل دائراً بلا نهاية.
+  RxNum deliveryFee = RxNum(0);
 
   /// [round-250] خطوة تقريب الإجمالي من الخادم (`roundingStep` في رد السلة).
   final RxInt roundingStep = kOrderRoundingStep.obs;
 
   /// مجموع الأصناف بلا تقريب (تبويب السلة).
-  int get cartSubtotal => calculateTotalCartPrice().round();
+  num get cartSubtotal => calculateTotalCartPrice();
 
   /// [round-250] الإجمالي الذي سيُخصم فعلاً عند الإرسال:
   /// (الأصناف + التوصيل) مقرَّباً للأعلى إلى مضاعف الخطوة — يطابق الخادم.
-  int get finalTotal => roundUpToStep(
+  num get finalTotal => roundToStep(
         cartSubtotal + deliveryFee.value,
         step: roundingStep.value,
       );
@@ -177,15 +179,17 @@ class CartController extends GetxController {
     }
   }
 
-  int totalItemPrice(int index) {
-    try {
-      return (dataCart[index]['product']['price'] *
-          (dataCart[index]['packing']['quantity'] *
-              dataCart[index]['quantity']));
-    } catch (e) {
-      return (dataCart[index]['product']['price'] *
-          dataCart[index]['quantity']);
-    }
+  /// [price-decimal] `num` لا `int`.
+  ///
+  /// كان نوع الإرجاع `int` وجسمه حاصل ضرب قد يكون عشرياً، و`try/catch` لا
+  /// ينقذ لأن كتلة `catch` تكرّر العملية نفسها فترمي مرة أخرى بلا التقاط.
+  num totalItemPrice(int index) {
+    final item = dataCart[index];
+    final price = _asNum(item['product']?['price']);
+    final qty = _asNum(item['quantity'] ?? 1);
+    final packing = item['packing'];
+    final packQty = packing is Map ? _asNum(packing['quantity'] ?? 1) : 1;
+    return price * (packQty == 0 ? 1 : packQty) * qty;
   }
 
   double calculateTotalCartPrice() {
@@ -218,7 +222,7 @@ class CartController extends GetxController {
 
     if (handlingData(response) == StatusRequest.success) {
       dataCart.value = response['cart'] ?? [];
-      deliveryFee.value = response['deliveryFee'] ?? 0;
+      deliveryFee.value = _asNum(response['deliveryFee'] ?? 0);
       roundingStep.value = roundingStepOrDefault(response['roundingStep']); // [round-250]
     }
     statusCode.value = handlingStatusCode(response);

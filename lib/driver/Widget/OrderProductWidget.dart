@@ -230,7 +230,8 @@ class OrderProductWidget extends StatelessWidget {
     return "";
   }
 
-  int totalItemPrice(dynamic item) {
+  /// [price-decimal] `num` لا `int` — لا بتر للكسر.
+  num totalItemPrice(dynamic item) {
     final price = item['price'];
     final qty = item['quantity'];
 
@@ -242,6 +243,6 @@ class OrderProductWidget extends StatelessWidget {
     if (packing is Map && packing['quantity'] is num) {
       packingQty = (packing['quantity'] as num).toInt();
     }
-    return (price * (packingQty * qty)).toInt();
+    return price * (packingQty * qty);
   }
 }

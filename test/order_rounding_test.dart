@@ -2,19 +2,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:customer/core/functions/orderRounding.dart';
 
 void main() {
-  group('roundUpToStep', () {
+  group('roundToStep', () {
     test('للأعلى إلى مضاعف 250، الصفر والسالب كما هما', () {
-      expect(roundUpToStep(0), 0);
-      expect(roundUpToStep(1), 250);
-      expect(roundUpToStep(249), 250);
-      expect(roundUpToStep(250), 250);
-      expect(roundUpToStep(251), 500);
-      expect(roundUpToStep(10100), 10250);
-      expect(roundUpToStep(-5), -5);
-      expect(roundUpToStep(10100, step: 500), 10500);
-      expect(roundUpToStep(10100.4), 10250);
-      expect(roundUpToStep(null), 0);
-      expect(roundUpToStep(double.nan), 0);
+      expect(roundToStep(0), 0);
+      expect(roundToStep(1), 0, reason: 'أقل من نصف خطوة ينزل');
+      expect(roundToStep(249), 250);
+      expect(roundToStep(250), 250);
+      expect(roundToStep(251), 250);
+      expect(roundToStep(10100), 10000);
+      expect(roundToStep(-5), -5);
+      expect(roundToStep(10100, step: 500), 10000);
+      expect(roundToStep(10100.4), 10000);
+      expect(roundToStep(null), 0);
+      expect(roundToStep(double.nan), 0);
     });
   });
 
@@ -58,12 +58,17 @@ void main() {
 
     test('طلب قديم غير مقرَّب: التخفيض لا يرفع الإجمالي', () {
       final reduce = previewAfterDelta(currentTotal: 10100, lineDelta: -50);
-      expect(reduce.totalPrice, 10100);
-      expect(reduce.delta, 0);
+      expect(reduce.totalPrice, 10000, reason: 'الأساس 10,050 ⇒ أقرب 10,000');
+      expect(reduce.delta, -100);
+
+      // المنتصف يصعد فوق الإجمالي السابق — هنا يلزم الحارس.
+      final tie = previewAfterDelta(currentTotal: 10130, lineDelta: -5);
+      expect(tie.totalPrice, 10130, reason: 'الحارس يمنع زيادة بفعل تخفيض');
+      expect(tie.delta, 0);
 
       final big = previewAfterDelta(currentTotal: 10100, lineDelta: -1000);
-      expect(big.totalPrice, 9250);
-      expect(big.delta, -850);
+      expect(big.totalPrice, 9000);
+      expect(big.delta, -1100);
 
       final inc = previewAfterDelta(currentTotal: 10100, lineDelta: 300);
       expect(inc.totalPrice, 10500);
@@ -84,7 +89,7 @@ void main() {
               step: step,
             );
             expect(r.delta <= 0, isTrue, reason: 's=$step t=$total ld=$ld');
-            expect(r.roundingAdjustment >= 0 && r.roundingAdjustment < step, isTrue);
+            expect(r.roundingAdjustment <= step ~/ 2, isTrue);
           }
         }
       }
