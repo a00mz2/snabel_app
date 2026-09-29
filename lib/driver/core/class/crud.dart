@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:dartz/dartz.dart';
 import 'package:customer/core/services/support_chat_service.dart';
+import 'package:customer/core/class/client_capabilities.dart';
 import 'package:customer/driver/core/class/statusRequest.dart';
 import 'package:customer/driver/linkApi.dart';
 import 'package:customer/driver/core/functions/checkInternetConnection.dart';
@@ -16,7 +17,10 @@ import 'package:http_parser/http_parser.dart';
 import 'package:image/image.dart' as img;
 
 class DriverCrud {
-  final _baseHeaders = {'Content-Type': 'application/json'};
+  final _baseHeaders = {
+    'Content-Type': 'application/json',
+    ...clientCapabilityHeaders,
+  };
 
   Future<Either<StatusRequest, Map>> request({
     required String method,
@@ -200,7 +204,10 @@ class DriverCrud {
       final res = await http
           .post(
             Uri.parse(DriverApplink.driverRefreshToken),
-            headers: {"Content-Type": "application/json"},
+            headers: {
+              "Content-Type": "application/json",
+              ...clientCapabilityHeaders,
+            },
             body: jsonEncode({"refreshToken": refreshToken}),
           )
           .timeout(const Duration(seconds: 15));

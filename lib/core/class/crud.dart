@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:customer/core/class/statusRequest.dart';
+import 'package:customer/core/class/client_capabilities.dart';
 import 'package:customer/core/functions/checkInternetConnection.dart';
 import 'package:customer/core/functions/snackbar.dart';
 import 'package:customer/core/services/services.dart';
@@ -44,7 +45,10 @@ class Crud {
 
   Map<String, String> _buildHeaders({bool isPublicRoutes = false}) {
     final token = myServices.sharedPreferences.getString('Token');
-    final headers = {'Content-Type': 'application/json'};
+    final headers = {
+      'Content-Type': 'application/json',
+      ...clientCapabilityHeaders,
+    };
 
     // لا نرسل Authorization إلا عند وجود توكن فعلي وليس مساراً عاماً
     if (!isPublicRoutes && token != null && token.isNotEmpty) {
@@ -316,7 +320,7 @@ class Crud {
     }
     try {
       final token = myServices.sharedPreferences.getString('Token');
-      final headers = <String, String>{};
+      final headers = <String, String>{...clientCapabilityHeaders};
       if (!isPublicRoutes && token != null && token.isNotEmpty) {
         headers['Authorization'] = "Bearer $token";
       }
@@ -417,7 +421,7 @@ class Crud {
     if (await checkInternetConnection()) {
       try {
         final token = myServices.sharedPreferences.getString('Token');
-        final headers = <String, String>{};
+        final headers = <String, String>{...clientCapabilityHeaders};
         if (!isPublicRoutes && token != null && token.isNotEmpty) {
           headers['Authorization'] = "Bearer $token";
         }
@@ -538,7 +542,10 @@ class Crud {
       response = await http
           .post(
             Uri.parse(Applink.CustomersRefreshToken),
-            headers: {"Content-Type": "application/json"},
+            headers: {
+              "Content-Type": "application/json",
+              ...clientCapabilityHeaders,
+            },
             body: json.encode({"refreshToken": currentRefreshToken}),
           )
           // بدون مهلة يبقى كل طلب 401 معلّقاً خلف القفل حتى يستسلم النظام
